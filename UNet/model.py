@@ -39,51 +39,51 @@ class UNetFPP(nn.Module):
         super().__init__()
 
         # Encoder
-        self.conv1_1 = ConvBNLReLU(in_ch, 32)
-        self.conv1_2 = ConvBNLReLU(32, 32)
+        self.conv1_1 = ConvBNLReLU(in_ch, in_ch//16)
+        self.conv1_2 = ConvBNLReLU(in_ch//16, in_ch//16)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.drop1 = nn.Dropout2d(p=p_drop)
 
-        self.conv2_1 = ConvBNLReLU(32, 64)
-        self.conv2_2 = ConvBNLReLU(64, 64)
+        self.conv2_1 = ConvBNLReLU(in_ch//16, in_ch//8)
+        self.conv2_2 = ConvBNLReLU(in_ch//8, in_ch//8)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.drop2 = nn.Dropout2d(p=p_drop)
 
-        self.conv3_1 = ConvBNLReLU(64, 128)
-        self.conv3_2 = ConvBNLReLU(128, 128)
+        self.conv3_1 = ConvBNLReLU(in_ch//8, in_ch//4)
+        self.conv3_2 = ConvBNLReLU(in_ch//4, in_ch//4)
         self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.drop3 = nn.Dropout2d(p=p_drop)
 
         # Bottleneck at 120x120 (this corresponds to "conv4" block in the TF model,
         # but without the extra pool to 60x60).
-        self.conv4_1 = ConvBNLReLU(128, 256)
-        self.conv4_2 = ConvBNLReLU(256, 256)
+        self.conv4_1 = ConvBNLReLU(in_ch//4, in_ch//2)
+        self.conv4_2 = ConvBNLReLU(in_ch//2, in_ch//2)
         self.drop4 = nn.Dropout2d(p=p_drop)
 
         # Decoder
         # ConvTranspose2d sizing:
         # out = (in-1)*2 -2*pad + k + out_pad
         # choose k=5, pad=2, out_pad=1 => out = 2*in
-        self.up5 = nn.ConvTranspose2d(256, 128, kernel_size=5, stride=2, padding=2, output_padding=1)
-        self.conv5_1 = ConvBNLReLU(128, 128)          # "pre-merge" conv (like TF decoder blocks)
-        self.conv5_2 = ConvBNLReLU(128 + 128, 128)    # after concat with skip
-        self.conv5_3 = ConvBNLReLU(128, 128)
+        self.up5 = nn.ConvTranspose2d(in_ch//2, in_ch//4, kernel_size=5, stride=2, padding=2, output_padding=1)
+        self.conv5_1 = ConvBNLReLU(in_ch//4, in_ch//4)          # "pre-merge" conv (like TF decoder blocks)
+        self.conv5_2 = ConvBNLReLU(in_ch//4 + in_ch//4, in_ch//4)    # after concat with skip
+        self.conv5_3 = ConvBNLReLU(in_ch//4, in_ch//4)
         self.drop5 = nn.Dropout2d(p=p_drop)
 
-        self.up6 = nn.ConvTranspose2d(128, 64, kernel_size=5, stride=2, padding=2, output_padding=1)
-        self.conv6_1 = ConvBNLReLU(64, 64)
-        self.conv6_2 = ConvBNLReLU(64 + 64, 64)
-        self.conv6_3 = ConvBNLReLU(64, 64)
+        self.up6 = nn.ConvTranspose2d(in_ch//4, in_ch//8, kernel_size=5, stride=2, padding=2, output_padding=1)
+        self.conv6_1 = ConvBNLReLU(in_ch//8, in_ch//8)
+        self.conv6_2 = ConvBNLReLU(in_ch//8 + in_ch//8, in_ch//8)
+        self.conv6_3 = ConvBNLReLU(in_ch//8, in_ch//8)
         self.drop6 = nn.Dropout2d(p=p_drop)
 
-        self.up7 = nn.ConvTranspose2d(64, 32, kernel_size=5, stride=2, padding=2, output_padding=1)
-        self.conv7_1 = ConvBNLReLU(32, 32)
-        self.conv7_2 = ConvBNLReLU(32 + 32, 32)
-        self.conv7_3 = ConvBNLReLU(32, 32)
+        self.up7 = nn.ConvTranspose2d(in_ch//8, in_ch//16, kernel_size=5, stride=2, padding=2, output_padding=1)
+        self.conv7_1 = ConvBNLReLU(in_ch//16, in_ch//16)
+        self.conv7_2 = ConvBNLReLU(in_ch//16 + in_ch//16, in_ch//16)
+        self.conv7_3 = ConvBNLReLU(in_ch//16, in_ch//16)
         self.drop7 = nn.Dropout2d(p=p_drop)
 
         # Output (linear)
-        self.out = nn.Conv2d(32, out_ch, kernel_size=5, padding=2, bias=True)
+        self.out = nn.Conv2d(in_ch//16, out_ch, kernel_size=5, padding=2, bias=True)
 
         self._init_weights()
 
@@ -97,11 +97,11 @@ class UNetFPP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Encoder
-        x1 = self.conv1_2(self.conv1_1(x))          # (B,32,960,960)
-        p1 = self.drop1(self.pool1(x1))             # (B,32,480,480)
+        x1 = self.conv1_2(self.conv1_1(x))          # (B,in_ch//16,960,960)
+        p1 = self.drop1(self.pool1(x1))             # (B,in_ch//16,480,480)
 
-        x2 = self.conv2_2(self.conv2_1(p1))         # (B,64,480,480)
-        p2 = self.drop2(self.pool2(x2))             # (B,64,240,240)
+        x2 = self.conv2_2(self.conv2_1(p1))         # (B,in_ch//8,480,480)
+        p2 = self.drop2(self.pool2(x2))             # (B,in_ch//8,240,240)
 
         x3 = self.conv3_2(self.conv3_1(p2))         # (B,128,240,240)
         p3 = self.drop3(self.pool3(x3))             # (B,128,120,120)
@@ -114,15 +114,15 @@ class UNetFPP(nn.Module):
         m5 = torch.cat([x3, c5_1], dim=1)           # (B,256,240,240)
         x5 = self.drop5(self.conv5_3(self.conv5_2(m5)))  # (B,128,240,240)
 
-        u6 = self.up6(x5)                           # (B,64,480,480)
-        c6_1 = self.conv6_1(u6)                     # (B,64,480,480)
+        u6 = self.up6(x5)                           # (B,in_ch//8,480,480)
+        c6_1 = self.conv6_1(u6)                     # (B,in_ch//8,480,480)
         m6 = torch.cat([x2, c6_1], dim=1)           # (B,128,480,480)
-        x6 = self.drop6(self.conv6_3(self.conv6_2(m6)))  # (B,64,480,480)
+        x6 = self.drop6(self.conv6_3(self.conv6_2(m6)))  # (B,in_ch//8,480,480)
 
-        u7 = self.up7(x6)                           # (B,32,960,960)
-        c7_1 = self.conv7_1(u7)                     # (B,32,960,960)
-        m7 = torch.cat([x1, c7_1], dim=1)           # (B,64,960,960)
-        x7 = self.drop7(self.conv7_3(self.conv7_2(m7)))  # (B,32,960,960)
+        u7 = self.up7(x6)                           # (B,in_ch//16,960,960)
+        c7_1 = self.conv7_1(u7)                     # (B,in_ch//16,960,960)
+        m7 = torch.cat([x1, c7_1], dim=1)           # (B,in_ch//8,960,960)
+        x7 = self.drop7(self.conv7_3(self.conv7_2(m7)))  # (B,in_ch//16,960,960)
 
         return self.out(x7)
 
