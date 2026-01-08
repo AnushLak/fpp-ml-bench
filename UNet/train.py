@@ -1,350 +1,464 @@
+# -*- coding: utf-8 -*-
+"""
+PyTorch train.py for FPP synthetic dataset structure
+
+Input:
+  in_dir = fpp_synthetic_dataset/<object_name>/A{angle}/A_fringestep.../(2.png or *.png)
+
+Target:
+  out_dir = data/depth_images/<object-name>-a{angle}.mat
+
+Checkpoints:
+  ./checkpoints
+"""
+
+import os
+import re
+import time, csv
+import random
+import gc
+from pathlib import Path
+from typing import List, Tuple, Dict, Optional
+
+import numpy as np
+import matplotlib.pyplot as plt
+import imageio
+
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from unet import UNet
-import os
-import json
-from datetime import datetime
-from PIL import Image
-import numpy as np
-from tqdm import tqdm
 
-# ============================================================================
-# DATASET CLASS
-# ============================================================================
-class FringeDataset(Dataset):
+from model_torch import UNetFPP, masked_rmse  # <- your PyTorch model + loss
+
+
+# -----------------------------
+# Repro / device
+# -----------------------------
+SEED = 1234
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+# -----------------------------
+# Config (YOU SET THESE)
+# -----------------------------
+INPUT_HEIGHT = 960
+INPUT_WIDTH  = 960
+OUTPUT_HEIGHT = 960
+OUTPUT_WIDTH  = 960
+
+BATCH_SIZE = 4
+NUM_EPOCH = 700
+
+# Your new structure
+in_dir = r"fpp_synthetic_dataset"          # root containing object_name folders
+out_dir = r"data\depth_images"            # folder containing .mat depth files
+out_path = r"results"                     # where training_loss.csv + optional plots go
+
+checkpoint_dir = r"./checkpoints"         # as requested
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def center_crop_or_pad(arr: np.ndarray, th: int, tw: int, pad_value: float = 0.0) -> np.ndarray:
+    """Ensure arr is (th,tw) by center-crop/pad."""
+    if arr.ndim != 2:
+        raise ValueError(f"Expected 2D array, got shape {arr.shape}")
+    h, w = arr.shape
+
+    # crop
+    if h > th:
+        top = (h - th) // 2
+        arr = arr[top:top + th, :]
+    if w > tw:
+        left = (w - tw) // 2
+        arr = arr[:, left:left + tw]
+
+    # pad
+    h, w = arr.shape
+    if h < th or w < tw:
+        pad_top = (th - h) // 2 if h < th else 0
+        pad_bottom = (th - h) - pad_top if h < th else 0
+        pad_left = (tw - w) // 2 if w < tw else 0
+        pad_right = (tw - w) - pad_left if w < tw else 0
+        arr = np.pad(arr, ((pad_top, pad_bottom), (pad_left, pad_right)),
+                     mode="constant", constant_values=pad_value)
+    return arr.astype(np.float32)
+
+
+def _ensure_gray2d(img: np.ndarray) -> np.ndarray:
+    if img.ndim == 2:
+        return img
+    if img.ndim == 3:
+        return img[..., 0]
+    raise ValueError(f"Unexpected image ndim: {img.ndim}, shape={img.shape}")
+
+
+def load_depth_from_mat(mat_path: Path) -> np.ndarray:
     """
-    Dataset for fringe images - one fringe image per object
+    Loads a depth map from a .mat file.
+    Tries scipy.io.loadmat (v7) then h5py (v7.3).
+    Chooses the first 2D array-like variable with largest size.
     """
-    def __init__(self, fringe_dir, depth_dir):
-        """
-        Args:
-            fringe_dir: Directory containing fringe images
-            depth_dir: Directory containing corresponding depth maps
-        """
-        self.fringe_dir = fringe_dir
-        self.depth_dir = depth_dir
+    mat_path = Path(mat_path)
+    if not mat_path.exists():
+        raise FileNotFoundError(f"Depth .mat not found: {mat_path}")
 
-        # Get sorted list of files
-        self.fringe_files = sorted([f for f in os.listdir(fringe_dir)
-                                    if f.endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))])
-        self.depth_files = sorted([f for f in os.listdir(depth_dir)
-                                   if f.endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))])
+    # 1) Try scipy (MATLAB v7)
+    try:
+        import scipy.io
+        d = scipy.io.loadmat(str(mat_path))
+        # ignore meta keys
+        candidates = []
+        for k, v in d.items():
+            if k.startswith("__"):
+                continue
+            if isinstance(v, np.ndarray) and v.ndim >= 2:
+                candidates.append((k, v))
+        if not candidates:
+            raise ValueError(f"No array candidates found in {mat_path} via scipy.")
+        # pick largest 2D-ish
+        k_best, v_best = max(candidates, key=lambda kv: np.prod(kv[1].shape))
+        arr = np.array(v_best)
+        # squeeze to 2D if possible
+        arr = np.squeeze(arr)
+        if arr.ndim != 2:
+            # if still not 2D, try taking first slice
+            while arr.ndim > 2:
+                arr = arr[0]
+            arr = np.squeeze(arr)
+        if arr.ndim != 2:
+            raise ValueError(f"Could not reduce mat var '{k_best}' to 2D. Got shape {arr.shape}.")
+        return arr.astype(np.float32)
+    except Exception:
+        pass
 
-        assert len(self.fringe_files) == len(self.depth_files), \
-            f"Mismatch: {len(self.fringe_files)} fringe images vs {len(self.depth_files)} depth maps"
+    # 2) Try h5py (MATLAB v7.3)
+    try:
+        import h5py
+        with h5py.File(str(mat_path), "r") as f:
+            # gather datasets
+            candidates = []
+            def visit(name, obj):
+                if isinstance(obj, h5py.Dataset):
+                    shape = obj.shape
+                    if len(shape) >= 2:
+                        candidates.append((name, obj))
+            f.visititems(visit)
+            if not candidates:
+                raise ValueError(f"No dataset candidates found in {mat_path} via h5py.")
+            name_best, ds_best = max(candidates, key=lambda nd: np.prod(nd[1].shape))
+            arr = np.array(ds_best)
+            arr = np.squeeze(arr)
+            # MATLAB stores as column-major; sometimes transpose needed.
+            # We'll return as-is; if your maps look rotated, transpose here.
+            if arr.ndim != 2:
+                while arr.ndim > 2:
+                    arr = arr[0]
+                arr = np.squeeze(arr)
+            if arr.ndim != 2:
+                raise ValueError(f"Could not reduce mat dataset '{name_best}' to 2D. Got shape {arr.shape}.")
+            return arr.astype(np.float32)
+    except Exception as e:
+        raise RuntimeError(f"Failed loading .mat depth from {mat_path}. Error: {e}")
 
-        print(f"Loaded {len(self.fringe_files)} samples from {fringe_dir}")
+
+def resolve_depth_mat(out_dir: Path, object_folder_name: str, angle: int) -> Path:
+    """
+    Tries a few filename conventions:
+      <object>-a{angle}.mat
+      <object>_a{angle}.mat
+    where <object> may be folder name or folder name with '_'->'-'
+    """
+    out_dir = Path(out_dir)
+
+    obj1 = object_folder_name
+    obj2 = object_folder_name.replace("_", "-")
+
+    candidates = [
+        out_dir / f"{obj2}-a{angle}.mat",
+        out_dir / f"{obj1}-a{angle}.mat",
+        out_dir / f"{obj2}_a{angle}.mat",
+        out_dir / f"{obj1}_a{angle}.mat",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    # If none exist, still return the most likely one (better error message upstream)
+    return candidates[0]
+
+
+FRINGE_RE = re.compile(r"^A_fringe(\d+)\.png$", re.IGNORECASE)
+
+def find_fringe_images(path: Path) -> List[Path]:
+    """
+    Returns ALL fringe images matching A_fringe#.png under:
+      - a directory (direct children)
+      - or a single file path
+
+    This supports both layouts:
+      A{angle}/A_fringestep.../A_fringe#.png
+      A{angle}/A_fringe#.png
+    """
+    path = Path(path)
+
+    if path.is_file():
+        return [path] if FRINGE_RE.match(path.name) else []
+
+    if path.is_dir():
+        imgs = [p for p in path.iterdir() if p.is_file() and FRINGE_RE.match(p.name)]
+        # sort by the numeric # in A_fringe#.png so ordering is stable
+        imgs.sort(key=lambda p: int(FRINGE_RE.match(p.name).group(1)))
+        return imgs
+
+    return []
+
+
+# -----------------------------
+# Dataset indexing
+# -----------------------------
+ANGLE_RE = re.compile(r"^A(\d+)$", re.IGNORECASE)
+
+def index_fpp_dataset(in_dir: Path, out_dir: Path) -> List[Dict]:
+    """
+    Builds samples:
+      fpp_synthetic_dataset/<object>/A{angle}/.../(A_fringe#.png)
+
+    Each A_fringe#.png is treated as ONE sample:
+      meta = { object, angle, sample, fringe_img, depth_mat }
+    """
+    in_dir = Path(in_dir)
+    out_dir = Path(out_dir)
+
+    samples: List[Dict] = []
+    if not in_dir.exists():
+        raise FileNotFoundError(f"in_dir not found: {in_dir}")
+    if not out_dir.exists():
+        raise FileNotFoundError(f"out_dir not found: {out_dir}")
+
+    object_folders = sorted([p for p in in_dir.iterdir() if p.is_dir()])
+
+    for obj_path in object_folders:
+        obj_name = obj_path.name
+
+        angle_folders = sorted([p for p in obj_path.iterdir()
+                                if p.is_dir() and ANGLE_RE.match(p.name)])
+        for ang_path in angle_folders:
+            angle = int(ANGLE_RE.match(ang_path.name).group(1))
+            depth_mat = resolve_depth_mat(out_dir, obj_name, angle)
+
+            # Look inside A{angle}: could contain step folders, or direct A_fringe#.png files
+            entries = sorted([p for p in ang_path.iterdir() if p.is_dir() or p.is_file()])
+
+            for e in entries:
+                # Collect fringe images from either a dir or a file
+                fringe_imgs = find_fringe_images(e)
+                if not fringe_imgs:
+                    continue
+
+                for fi in fringe_imgs:
+                    # make a unique sample name
+                    # e.g., "A_fringestep12__A_fringe3" or "A_fringe3"
+                    parent_tag = e.name if e.is_dir() else ""
+                    stem_tag = fi.stem
+                    sample_name = f"{parent_tag}__{stem_tag}" if parent_tag else stem_tag
+
+                    samples.append({
+                        "object": obj_name,
+                        "angle": angle,
+                        "sample": sample_name,
+                        "fringe_img": fi,
+                        "depth_mat": depth_mat,
+                    })
+
+    if not samples:
+        raise RuntimeError(
+            f"No samples found. Expected A_fringe#.png under: {in_dir}\\<object>\\A<angle>\\..."
+        )
+    return samples
+
+
+# -----------------------------
+# Torch Dataset
+# -----------------------------
+class FPPFringeDepthDataset(Dataset):
+    """
+    y has 2 channels:
+      y[0] = depth
+      y[1] = mask  (1=valid, 0=background)
+    """
+    def __init__(self, items: List[Dict], input_hw=(960, 960), output_hw=(960, 960)):
+        self.items = items
+        self.in_h, self.in_w = input_hw
+        self.out_h, self.out_w = output_hw
 
     def __len__(self):
-        return len(self.fringe_files)
+        return len(self.items)
 
     def __getitem__(self, idx):
-        # Load fringe image (grayscale)
-        fringe_path = os.path.join(self.fringe_dir, self.fringe_files[idx])
-        fringe = Image.open(fringe_path).convert('L')
-        fringe = np.array(fringe, dtype=np.float32) / 255.0  # Normalize to [0, 1]
-        fringe = torch.from_numpy(fringe).unsqueeze(0)  # Add channel dimension
+        meta = self.items[idx]
 
-        # Load depth map (grayscale)
-        depth_path = os.path.join(self.depth_dir, self.depth_files[idx])
-        depth = Image.open(depth_path).convert('L')
-        depth = np.array(depth, dtype=np.float32) / 255.0
-        depth = torch.from_numpy(depth).unsqueeze(0)
+        # Load fringe image
+        img = imageio.imread(str(meta["fringe_img"])).astype(np.float32)
+        img = _ensure_gray2d(img)
 
-        return fringe, depth
+        # Normalize if looks like 0..255
+        if np.nanmax(img) > 1.5:
+            img = img / 255.0
 
-# ============================================================================
-# RMSE LOSS FUNCTION
-# ============================================================================
-class RMSELoss(nn.Module):
-    """Root Mean Squared Error Loss"""
-    def __init__(self, eps=1e-8):
-        super().__init__()
-        self.mse = nn.MSELoss()
-        self.eps = eps
+        img = center_crop_or_pad(img, self.in_h, self.in_w, pad_value=0.0)
+        x = img[None, ...]  # (1,H,W)
 
-    def forward(self, pred, target):
-        return torch.sqrt(self.mse(pred, target) + self.eps)
+        # Load depth from .mat (shared per object-angle)
+        depth = load_depth_from_mat(meta["depth_mat"])
+        depth = center_crop_or_pad(depth, self.out_h, self.out_w, pad_value=np.nan)
 
-# ============================================================================
-# TRAINING CONFIGURATION
-# ============================================================================
-class Config:
-    # Data paths
-    TRAIN_FRINGE_DIR = "data/train/fringe"
-    TRAIN_DEPTH_DIR = "data/train/depth"
-    VAL_FRINGE_DIR = "data/val/fringe"
-    VAL_DEPTH_DIR = "data/val/depth"
+        # Build mask from depth
+        # (common convention: valid pixels are finite and > 0)
+        mask = np.isfinite(depth) & (depth > 0)
+        mask = mask.astype(np.float32)
 
-    # Model parameters
-    IN_CHANNELS = 1
-    OUT_CHANNELS = 1
-    DROPOUT_RATE = 0.5
+        # replace NaNs in depth with 0 so model sees numeric targets; mask controls loss
+        depth_num = np.where(np.isfinite(depth), depth, 0.0).astype(np.float32)
 
-    # Training hyperparameters
-    BATCH_SIZE = 4
-    NUM_EPOCHS = 600
-    LEARNING_RATE = 1e-4
+        y = np.stack([depth_num, mask], axis=0)  # (2,H,W)
 
-    # RMSProp parameters
-    ALPHA = 0.99
-    MOMENTUM = 0.0
-    WEIGHT_DECAY = 1e-8
+        return torch.from_numpy(x), torch.from_numpy(y), meta
 
-    # Device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Checkpoint and logging
-    CHECKPOINT_DIR = "checkpoints"
-    LOG_FILE = "training_log.json"
-    SAVE_EVERY = 5
+# -----------------------------
+# Train / Eval
+# -----------------------------
+def save_checkpoint(path: Path, model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state_dict = model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()
+    torch.save({"epoch": epoch, "model": state_dict, "optimizer": optimizer.state_dict()}, str(path))
 
-# ============================================================================
-# TRAINING FUNCTIONS
-# ============================================================================
-def train_one_epoch(model, dataloader, optimizer, criterion, device):
-    """Train for one epoch"""
-    model.train()  # Enable dropout
-    running_loss = 0.0
-    batch_losses = []
 
-    loop = tqdm(dataloader, desc="Training", leave=False)
-    for fringe, depth_gt in loop:
-        fringe = fringe.to(device)
-        depth_gt = depth_gt.to(device)
-
-        # Zero gradients
-        optimizer.zero_grad()
-
-        # Forward pass
-        depth_pred = model(fringe)
-        loss = criterion(depth_pred, depth_gt)
-
-        # Backward pass
-        loss.backward()
-        optimizer.step()
-
-        # Track loss
-        batch_loss = loss.item()
-        running_loss += batch_loss
-        batch_losses.append(batch_loss)
-
-        loop.set_postfix(loss=batch_loss)
-
-    epoch_loss = running_loss / len(dataloader)
-    return epoch_loss, batch_losses
-
-def validate(model, dataloader, criterion, device):
-    """Validation loop"""
-    model.eval()  # Disable dropout
-    running_loss = 0.0
-    batch_losses = []
-
-    with torch.no_grad():
-        loop = tqdm(dataloader, desc="Validation", leave=False)
-        for fringe, depth_gt in loop:
-            fringe = fringe.to(device)
-            depth_gt = depth_gt.to(device)
-
-            # Forward pass
-            depth_pred = model(fringe)
-            loss = criterion(depth_pred, depth_gt)
-
-            # Track loss
-            batch_loss = loss.item()
-            running_loss += batch_loss
-            batch_losses.append(batch_loss)
-
-            loop.set_postfix(loss=batch_loss)
-
-    epoch_loss = running_loss / len(dataloader)
-    return epoch_loss, batch_losses
-
-def save_checkpoint(model, optimizer, epoch, loss, filepath):
-    """Save model checkpoint"""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'loss': loss,
-    }
-    torch.save(checkpoint, filepath)
-    print(f"Checkpoint saved: {filepath}")
-
-def log_to_json(log_file, log_data):
-    """Append training log to JSON file"""
-    # Load existing log if it exists
-    if os.path.exists(log_file):
-        with open(log_file, 'r') as f:
-            logs = json.load(f)
-    else:
-        logs = []
-
-    # Append new log entry
-    logs.append(log_data)
-
-    # Save to file
-    with open(log_file, 'w') as f:
-        json.dump(logs, f, indent=4)
-
-# ============================================================================
-# MAIN TRAINING LOOP
-# ============================================================================
 def main():
-    config = Config()
+    os.makedirs(out_path, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # Create datasets
-    print("=" * 70)
-    print("Loading datasets...")
-    print("=" * 70)
+    # Index all samples
+    all_items = index_fpp_dataset(Path(in_dir), Path(out_dir))
 
-    train_dataset = FringeDataset(
-        config.TRAIN_FRINGE_DIR,
-        config.TRAIN_DEPTH_DIR
-    )
-    val_dataset = FringeDataset(
-        config.VAL_FRINGE_DIR,
-        config.VAL_DEPTH_DIR
-    )
+    # Split (70/15/15) like the TF version
+    n = len(all_items)
+    n_train = int(n * 0.7)
+    n_val = int(n * 0.15)
+    idxs = list(range(n))
+    random.shuffle(idxs)
 
-    print(f"\nTraining samples: {len(train_dataset)}")
-    print(f"Validation samples: {len(val_dataset)}")
+    train_items = [all_items[i] for i in idxs[:n_train]]
+    val_items   = [all_items[i] for i in idxs[n_train:n_train + n_val]]
+    test_items  = [all_items[i] for i in idxs[n_train + n_val:]]
 
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=True,
-        num_workers=4,
-        pin_memory=True if config.DEVICE == "cuda" else False
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True if config.DEVICE == "cuda" else False
-    )
+    print(" Total number of samples:", n,
+          "\n Number of training samples", len(train_items),
+          "\n Number of validating samples", len(val_items),
+          "\n Number of testing samples", len(test_items))
 
-    # Initialize model
-    print("\n" + "=" * 70)
-    print("Initializing model...")
-    print("=" * 70)
+    train_ds = FPPFringeDepthDataset(train_items, (INPUT_HEIGHT, INPUT_WIDTH), (OUTPUT_HEIGHT, OUTPUT_WIDTH))
+    val_ds   = FPPFringeDepthDataset(val_items,   (INPUT_HEIGHT, INPUT_WIDTH), (OUTPUT_HEIGHT, OUTPUT_WIDTH))
+    test_ds  = FPPFringeDepthDataset(test_items,  (INPUT_HEIGHT, INPUT_WIDTH), (OUTPUT_HEIGHT, OUTPUT_WIDTH))
 
-    model = UNet(
-        in_channels=config.IN_CHANNELS,
-        out_channels=config.OUT_CHANNELS,
-        dropout_rate=config.DROPOUT_RATE
-    ).to(config.DEVICE)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4,
+                              pin_memory=(device.type == "cuda"), drop_last=False)
+    val_loader   = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2,
+                              pin_memory=(device.type == "cuda"), drop_last=False)
+    test_loader  = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2,
+                              pin_memory=(device.type == "cuda"), drop_last=False)
 
-    # Count parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total parameters: {total_params:,}")
-    print(f"Trainable parameters: {trainable_params:,}")
+    # Model: your 3-downsample UNet (960->480->240->120)
+    model = UNetFPP(in_ch=1, out_ch=1, p_drop=0.1).to(device)
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
 
-    # RMSProp optimizer
-    optimizer = optim.RMSprop(
-        model.parameters(),
-        lr=config.LEARNING_RATE,
-        alpha=config.ALPHA,
-        momentum=config.MOMENTUM,
-        weight_decay=config.WEIGHT_DECAY
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-    # Learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode='min',
-        factor=0.5,
-        patience=5,
-        verbose=True
-    )
+    # CSV log
+    csv_path = Path(out_path) / "training_loss.csv"
+    if not csv_path.exists():
+        with open(csv_path, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["epoch", "train_loss", "vali_loss", "time_used", "learning_rate", "iteration"])
 
-    # RMSE Loss
-    criterion = RMSELoss()
+    iteration = 0
+    ckpt_path = Path(checkpoint_dir) / "ckpt.pt"
 
-    # Training configuration summary
-    print(f"\nDevice: {config.DEVICE}")
-    print(f"Batch size: {config.BATCH_SIZE}")
-    print(f"Learning rate: {config.LEARNING_RATE}")
-    print(f"Dropout rate: {config.DROPOUT_RATE}")
-    print(f"Optimizer: RMSProp (alpha={config.ALPHA}, momentum={config.MOMENTUM})")
-    print(f"Loss function: RMSE")
-
-    # Initialize training log
-    training_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\nTraining started at: {training_start_time}")
-
+    # -----------------------------
     # Training loop
-    print("\n" + "=" * 70)
-    print("Starting training...")
-    print("=" * 70)
+    # -----------------------------
+    for epoch in range(NUM_EPOCH):
+        start = time.time()
+        model.train()
+        train_losses = []
 
-    best_val_loss = float('inf')
+        for x, y, _meta in train_loader:
+            x = x.to(device, non_blocking=True)      # (B,1,H,W)
+            y = y.to(device, non_blocking=True)      # (B,2,H,W)
 
-    for epoch in range(config.NUM_EPOCHS):
-        print(f"\nEpoch {epoch+1}/{config.NUM_EPOCHS}")
-        print("-" * 70)
+            optimizer.zero_grad(set_to_none=True)
+            pred = model(x)                           # (B,1,H,W)
+            loss_val = masked_rmse(y, pred)
+            loss_val.backward()
+            optimizer.step()
 
-        # Train
-        train_loss, train_batch_losses = train_one_epoch(
-            model, train_loader, optimizer, criterion, config.DEVICE
-        )
-        print(f"Train RMSE: {train_loss:.6f}")
+            train_losses.append(float(loss_val.item()))
+            iteration += 1
 
-        # Validate
-        val_loss, val_batch_losses = validate(
-            model, val_loader, criterion, config.DEVICE
-        )
-        print(f"Val RMSE:   {val_loss:.6f}")
+        model.eval()
+        val_losses = []
+        with torch.no_grad():
+            for x, y, _meta in val_loader:
+                x = x.to(device, non_blocking=True)
+                y = y.to(device, non_blocking=True)
+                pred = model(x)
+                val_losses.append(float(masked_rmse(y, pred).item()))
 
-        # Learning rate scheduling
-        current_lr = optimizer.param_groups[0]['lr']
-        scheduler.step(val_loss)
-        new_lr = optimizer.param_groups[0]['lr']
+        end = time.time()
+        lr_now = optimizer.param_groups[0]["lr"]
 
-        if new_lr != current_lr:
-            print(f"Learning rate changed: {current_lr:.2e} -> {new_lr:.2e}")
+        print(f"Epoch {epoch+1}, "
+              f"Train Loss: {np.mean(train_losses):.6f}, "
+              f"Vali Loss: {np.mean(val_losses):.6f}, "
+              f"Time used: {int(np.round(end-start))}s, "
+              f"Learning rate: {lr_now:.6f}, iteration: {iteration}")
 
-        # Log to JSON
-        log_entry = {
-            "epoch": epoch + 1,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "train_loss": train_loss,
-            "val_loss": val_loss,
-            "learning_rate": new_lr,
-            "train_batch_losses": train_batch_losses,
-            "val_batch_losses": val_batch_losses
-        }
-        log_to_json(config.LOG_FILE, log_entry)
+        with open(csv_path, "a", newline="") as f:
+            w = csv.writer(f)
+            w.writerow([epoch + 1,
+                        float(np.mean(train_losses)),
+                        float(np.mean(val_losses)),
+                        int(np.round(end-start)),
+                        float(lr_now),
+                        int(iteration)])
 
-        # Save best model
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            save_checkpoint(
-                model, optimizer, epoch, val_loss,
-                f"{config.CHECKPOINT_DIR}/best_model.pth"
-            )
-            print(f"★ New best model! Val RMSE: {best_val_loss:.6f}")
+        # checkpoint cadence (matches your TF script)
+        if epoch % 50 == 0:
+            save_checkpoint(ckpt_path, model, optimizer, epoch)
 
-        # Periodic checkpoint
-        if (epoch + 1) % config.SAVE_EVERY == 0:
-            save_checkpoint(
-                model, optimizer, epoch, val_loss,
-                f"{config.CHECKPOINT_DIR}/checkpoint_epoch_{epoch+1}.pth"
-            )
+    # -----------------------------
+    # Test
+    # -----------------------------
+    model.eval()
+    test_losses = []
+    with torch.no_grad():
+        for x, y, _meta in test_loader:
+            x = x.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
+            pred = model(x)
+            test_losses.append(float(masked_rmse(y, pred).item()))
+    print("test loss:", float(np.mean(test_losses)))
 
-    # Training complete
-    print("\n" + "=" * 70)
-    print("Training completed!")
-    print("=" * 70)
-    print(f"Best validation RMSE: {best_val_loss:.6f}")
-    print(f"Training log saved to: {config.LOG_FILE}")
-    print(f"Best model saved to: {config.CHECKPOINT_DIR}/best_model.pth")
 
 if __name__ == "__main__":
     main()
