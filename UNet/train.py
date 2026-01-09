@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-from model_torch import UNetFPP, masked_rmse  # your PyTorch model + masked loss
+from model import UNetFPP, masked_rmse  # your PyTorch model + masked loss
 
 
 # -----------------------------
@@ -275,7 +275,7 @@ def main():
                               pin_memory=(device.type == "cuda"), drop_last=False)
 
     # Model
-    model = UNetFPP(in_ch=1, out_ch=1, p_drop=0.1).to(device)
+    model = UNetFPP(in_ch=960, out_ch=960, p_drop=0.1).to(device)
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 

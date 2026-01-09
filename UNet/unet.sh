@@ -4,8 +4,8 @@
 #SBATCH --ntasks=1                             # One training process
 #SBATCH --cpus-per-task=8                      # CPU cores for dataloaders
 #SBATCH --gres=gpu:a100:1                      # Request 1x A100 GPU
-#SBATCH --mem=32G                              # Memory allocation
-#SBATCH --time=10:00:00                        # Time limit (hh:mm:ss)
+#SBATCH --mem=128G                              # Memory allocation
+#SBATCH --time=1-00:00:00                        # Time limit (hh:mm:ss)
 #SBATCH --partition=nova                       # Partition/queue
 #SBATCH --output=unet_train_%j.out              # Output file (%j = job ID)
 #SBATCH --error=unet_train_%j.err               # Error file
