@@ -323,9 +323,6 @@ def main(args):
         start_epoch = checkpoint['epoch'] + 1
         best_val_loss = checkpoint['loss']
         print(f"Resuming from epoch {start_epoch}\n")
-
-    # CSV log
-    csv_path = 
     
     # Training loop
     print("Starting training...\n")
