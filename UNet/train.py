@@ -53,14 +53,15 @@ OUTPUT_WIDTH  = 960
 BATCH_SIZE = 4
 NUM_EPOCH = 700
 
-train_fringe_dir = Path(r"train/fringe")
-train_depth_dir  = Path(r"train/depth")
+# MODIFY THIS BASED ON YOUR DATA ORGANIZATION
+train_fringe_dir = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/train/fringe")
+train_depth_dir  = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/train/depth")
 
-val_fringe_dir   = Path(r"val/fringe")
-val_depth_dir    = Path(r"val/depth")
+val_fringe_dir   = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/val/fringe")
+val_depth_dir    = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/val/depth")
 
-test_fringe_dir  = Path(r"test/fringe")
-test_depth_dir   = Path(r"test/depth")
+test_fringe_dir  = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/test/fringe")
+test_depth_dir   = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/test/depth")
 
 out_path = Path(r"results")
 checkpoint_dir = Path(r"./checkpoints")
