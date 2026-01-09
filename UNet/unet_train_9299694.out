@@ -1,6 +1,0 @@
-Job started at: Thu Jan  8 06:39:06 PM CST 2026
-Running on host: nova21-gpu-13
-Job ID: 9299694
-GPUs on node: 1
-CUDA_VISIBLE_DEVICES: 0
-Job finished at: Thu Jan  8 06:39:06 PM CST 2026

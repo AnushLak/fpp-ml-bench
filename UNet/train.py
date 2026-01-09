@@ -54,14 +54,14 @@ BATCH_SIZE = 4
 NUM_EPOCH = 700
 
 # MODIFY THIS BASED ON YOUR DATA ORGANIZATION
-train_fringe_dir = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/train/fringe")
-train_depth_dir  = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/train/depth")
+train_fringe_dir = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/train/fringe")
+train_depth_dir  = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/train/depth")
 
-val_fringe_dir   = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/val/fringe")
-val_depth_dir    = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/val/depth")
+val_fringe_dir   = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/val/fringe")
+val_depth_dir    = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/val/depth")
 
-test_fringe_dir  = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/test/fringe")
-test_depth_dir   = Path(r"/work/arpawar/anushlak/SPIE-PW/fpp_unet_training_data/test/depth")
+test_fringe_dir  = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/test/fringe")
+test_depth_dir   = Path(r"/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data/test/depth")
 
 out_path = Path(r"results")
 checkpoint_dir = Path(r"./checkpoints")
@@ -136,27 +136,27 @@ def load_depth_from_mat(mat_path: Path) -> np.ndarray:
     except Exception:
         pass
 
-    # 2) Try h5py (MATLAB v7.3)
-    import h5py
-    with h5py.File(str(mat_path), "r") as f:
-        candidates = []
+    # # 2) Try h5py (MATLAB v7.3)
+    # import h5py
+    # with h5py.File(str(mat_path), "r") as f:
+    #     candidates = []
 
-        def visit(name, obj):
-            if isinstance(obj, h5py.Dataset) and len(obj.shape) >= 2:
-                candidates.append((name, obj))
+    #     def visit(name, obj):
+    #         if isinstance(obj, h5py.Dataset) and len(obj.shape) >= 2:
+    #             candidates.append((name, obj))
 
-        f.visititems(visit)
-        if not candidates:
-            raise ValueError(f"No dataset candidates found in {mat_path} via h5py.")
+    #     f.visititems(visit)
+    #     if not candidates:
+    #         raise ValueError(f"No dataset candidates found in {mat_path} via h5py.")
 
-        name_best, ds_best = max(candidates, key=lambda nd: np.prod(nd[1].shape))
-        arr = np.squeeze(np.array(ds_best))
-        while arr.ndim > 2:
-            arr = np.squeeze(arr[0])
-        if arr.ndim != 2:
-            raise ValueError(f"Could not reduce '{name_best}' to 2D, got {arr.shape}")
+    #     name_best, ds_best = max(candidates, key=lambda nd: np.prod(nd[1].shape))
+    #     arr = np.squeeze(np.array(ds_best))
+    #     while arr.ndim > 2:
+    #         arr = np.squeeze(arr[0])
+    #     if arr.ndim != 2:
+    #         raise ValueError(f"Could not reduce '{name_best}' to 2D, got {arr.shape}")
 
-        return arr.astype(np.float32)
+    #     return arr.astype(np.float32)
 
 
 def index_split(fringe_dir: Path, depth_dir: Path) -> List[Dict]:
@@ -217,6 +217,12 @@ class FringeToDepthDataset(Dataset):
     def __getitem__(self, idx):
         meta = self.items[idx]
 
+        meta = {
+            "stem": meta["stem"],
+            "fringe": str(meta["fringe"]),
+            "depth": str(meta["depth"]),
+        }
+
         # --- load fringe png ---
         img = imageio.imread(str(meta["fringe"])).astype(np.float32)
         img = _ensure_gray2d(img)
@@ -267,15 +273,15 @@ def main():
     val_ds   = FringeToDepthDataset(val_items,   (INPUT_HEIGHT, INPUT_WIDTH), (OUTPUT_HEIGHT, OUTPUT_WIDTH))
     test_ds  = FringeToDepthDataset(test_items,  (INPUT_HEIGHT, INPUT_WIDTH), (OUTPUT_HEIGHT, OUTPUT_WIDTH))
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=4,
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=1,
                               pin_memory=(device.type == "cuda"), drop_last=False)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2,
+    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=1,
                               pin_memory=(device.type == "cuda"), drop_last=False)
-    test_loader  = DataLoader(test_ds,  batch_size=BATCH_SIZE, shuffle=False, num_workers=2,
+    test_loader  = DataLoader(test_ds,  batch_size=BATCH_SIZE, shuffle=False, num_workers=1,
                               pin_memory=(device.type == "cuda"), drop_last=False)
 
     # Model
-    model = UNetFPP(in_ch=960, out_ch=960, p_drop=0.1).to(device)
+    model = UNetFPP(in_ch=1, out_ch=1, p_drop=0.1).to(device)
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
