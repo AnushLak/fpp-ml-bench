@@ -1,5 +1,11 @@
+visualizations/
 results/
 checkpoints/
+checkpoints_maskedrmse/
 logs/
 __pycache__/
 *.pyc
+hformer_train_*.out
+hformer_train_*.err
+unet_train_*.out
+unet_train_*.err

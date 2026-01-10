@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from hformer_parts import *
-from hrnet_backbone import HRNetBackbone
+from .hformer_parts import *
+from .hrnet_backbone import HRNetBackbone
 
 class Hformer(nn.Module):
     """
@@ -268,3 +268,37 @@ class Hformer(nn.Module):
         out = self.output_head(out)  # B, 1, 960, 960
 
         return out
+    
+
+class RMSELoss(nn.Module):
+    """Root Mean Squared Error Loss (includes background)"""
+    def __init__(self, eps=1e-8):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        self.eps = eps
+    
+    def forward(self, pred, target):
+        return torch.sqrt(self.mse(pred, target) + self.eps)
+
+
+class MaskedRMSELoss(nn.Module):
+    """
+    RMSE loss that ignores background pixels (depth == 0)
+    """
+    def __init__(self, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+    
+    def forward(self, pred, target):
+        # Create mask for non-zero pixels
+        mask = (target > 0).float()
+        
+        # Compute squared error only on masked pixels
+        squared_error = (pred - target) ** 2
+        masked_squared_error = squared_error * mask
+        
+        # Mean over valid pixels
+        mse = masked_squared_error.sum() / mask.sum().clamp(min=self.eps)
+        
+        # RMSE
+        return torch.sqrt(mse + self.eps)

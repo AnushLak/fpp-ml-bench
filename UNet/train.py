@@ -31,7 +31,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from PIL import Image
 from tqdm import tqdm
 
-from unet import UNetFPP, MaskedRMSELoss
+from unet import UNetFPP, MaskedRMSELoss, RMSELoss
 
 
 # =============================================================================
@@ -40,7 +40,7 @@ from unet import UNetFPP, MaskedRMSELoss
 class Config:
     """Training configuration"""
     # Data paths (MODIFY THESE)
-    DATA_ROOT = Path("/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
+    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
     TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
     TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
     VAL_FRINGE = DATA_ROOT / "val" / "fringe"
@@ -54,7 +54,7 @@ class Config:
     DROPOUT_RATE = 0.5
     
     # Training hyperparameters
-    BATCH_SIZE = 2
+    BATCH_SIZE = 4
     NUM_EPOCHS = 1000
     INITIAL_LR = 1e-4
     MIN_LR = 1e-6
@@ -304,7 +304,7 @@ def main(args):
     print(f"Model parameters: {total_params:,}\n")
     
     # Loss function
-    criterion = MaskedRMSELoss()
+    criterion = RMSELoss()
     
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=Config.INITIAL_LR)

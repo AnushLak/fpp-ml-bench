@@ -124,6 +124,17 @@ class UNetFPP(nn.Module):
         return x
 
 
+class RMSELoss(nn.Module):
+    """Root Mean Squared Error Loss (includes background)"""
+    def __init__(self, eps=1e-8):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        self.eps = eps
+    
+    def forward(self, pred, target):
+        return torch.sqrt(self.mse(pred, target) + self.eps)
+    
+
 class MaskedRMSELoss(nn.Module):
     """
     RMSE loss that ignores background pixels (depth=0)
@@ -172,7 +183,7 @@ if __name__ == "__main__":
     print(f"Output shape: {y.shape}")
     
     # Test loss
-    criterion = MaskedRMSELoss()
+    criterion = RMSELoss()
     target = torch.randn(2, 1, 960, 960).abs()  # Positive depth values
     loss = criterion(y, target)
     print(f"\nLoss: {loss.item():.6f}")

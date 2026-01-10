@@ -17,37 +17,55 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from PIL import Image
 from tqdm import tqdm
 
-from hformer import Hformer
+from hformer import Hformer, MaskedRMSELoss, RMSELoss
 
 
 # =============================================================================
-# Masked RMSE Loss
+# Configuration
 # =============================================================================
-class MaskedRMSELoss(nn.Module):
-    """
-    RMSE loss that ignores background pixels (depth == 0)
-    """
-    def __init__(self, eps=1e-8):
-        super().__init__()
-        self.eps = eps
+class Config:
+    """Training configuration - matches UNet setup"""
     
-    def forward(self, pred, target):
-        # Create mask for non-zero pixels
-        mask = (target > 0).float()
-        
-        # Compute squared error only on masked pixels
-        squared_error = (pred - target) ** 2
-        masked_squared_error = squared_error * mask
-        
-        # Mean over valid pixels
-        mse = masked_squared_error.sum() / mask.sum().clamp(min=self.eps)
-        
-        # RMSE
-        return torch.sqrt(mse + self.eps)
+    # Data paths
+    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
+    TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
+    TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
+    VAL_FRINGE = DATA_ROOT / "val" / "fringe"
+    VAL_DEPTH = DATA_ROOT / "val" / "depth"
+    
+    # Model parameters
+    IN_CHANNELS = 1
+    OUT_CHANNELS = 1
+    DROPOUT_RATE = 0.5
+    
+    # Training hyperparameters
+    BATCH_SIZE = 1  # Same as UNet (Hformer is larger, may need to reduce to 1)
+    NUM_EPOCHS = 1000
+    INITIAL_LR = 1e-4
+    MIN_LR = 1e-6
+    
+    # Learning rate scheduler
+    LR_PATIENCE = 10
+    LR_FACTOR = 0.1
+    
+    # Device
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    NUM_WORKERS = 4
+    
+    # Checkpointing
+    CHECKPOINT_DIR = Path("checkpoints")
+    SAVE_EVERY = 10
+    
+    # Logging
+    LOG_DIR = Path("logs")
+    CSV_LOG_FILE = LOG_DIR / "training_log.csv"
+    
+    # Random seed
+    SEED = 42
 
 
 # =============================================================================
-# Dataset
+# Dataset for PNG Depth Maps
 # =============================================================================
 class FringeFPPDatasetPNG(Dataset):
     """
@@ -107,50 +125,6 @@ class FringeFPPDatasetPNG(Dataset):
         depth = torch.from_numpy(depth).unsqueeze(0)    # (1, H, W)
         
         return fringe, depth, str(fringe_path.name)
-
-
-# =============================================================================
-# Configuration
-# =============================================================================
-class Config:
-    """Training configuration - matches UNet setup"""
-    
-    # Data paths
-    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
-    TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
-    TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
-    VAL_FRINGE = DATA_ROOT / "val" / "fringe"
-    VAL_DEPTH = DATA_ROOT / "val" / "depth"
-    
-    # Model parameters
-    IN_CHANNELS = 1
-    OUT_CHANNELS = 1
-    DROPOUT_RATE = 0.5
-    
-    # Training hyperparameters
-    BATCH_SIZE = 1  # Same as UNet (Hformer is larger, may need to reduce to 1)
-    NUM_EPOCHS = 1000
-    INITIAL_LR = 1e-4
-    MIN_LR = 1e-6
-    
-    # Learning rate scheduler
-    LR_PATIENCE = 10
-    LR_FACTOR = 0.1
-    
-    # Device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    NUM_WORKERS = 4
-    
-    # Checkpointing
-    CHECKPOINT_DIR = Path("checkpoints")
-    SAVE_EVERY = 10
-    
-    # Logging
-    LOG_DIR = Path("logs")
-    CSV_LOG_FILE = LOG_DIR / "training_log.csv"
-    
-    # Random seed
-    SEED = 42
 
 
 # =============================================================================
@@ -278,7 +252,7 @@ def main(args):
     print(f"Model parameters: {total_params:,}\n")
     
     # Loss function (Masked RMSE)
-    criterion = MaskedRMSELoss()
+    criterion = RMSELoss()
     
     # Optimizer (Adam like UNet)
     optimizer = torch.optim.Adam(model.parameters(), lr=Config.INITIAL_LR)
