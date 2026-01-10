@@ -116,7 +116,7 @@ class Config:
     """Training configuration - matches UNet setup"""
     
     # Data paths
-    DATA_ROOT = Path("/home/oadam/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
+    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
     TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
     TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
     VAL_FRINGE = DATA_ROOT / "val" / "fringe"
@@ -128,7 +128,7 @@ class Config:
     DROPOUT_RATE = 0.5
     
     # Training hyperparameters
-    BATCH_SIZE = 2  # Same as UNet (Hformer is larger, may need to reduce to 1)
+    BATCH_SIZE = 1  # Same as UNet (Hformer is larger, may need to reduce to 1)
     NUM_EPOCHS = 1000
     INITIAL_LR = 1e-4
     MIN_LR = 1e-6

@@ -19,11 +19,11 @@ class Hformer(nn.Module):
 
         # Configuration for 960x960 input
         # Patch embedding size 4 gives 240x240 feature maps
-        self.embed_dim = 64
-        self.depths = [2, 2, 2, 2]  # Depth of each stage
-        self.num_heads = [1, 2, 4, 8]  # Attention heads for each stage
+        self.embed_dim = 32
+        self.depths = [1, 1, 2, 2]  # Depth of each stage
+        self.num_heads = [1, 1, 2, 4]  # Attention heads for each stage
         self.window_size = 8  # Window size for local attention
-        self.mlp_ratio = 4.0
+        self.mlp_ratio = 2.0
         self.drop_rate = 0.0
         self.attn_drop_rate = 0.0
         self.drop_path_rate = 0.4
@@ -42,6 +42,11 @@ class Hformer(nn.Module):
         self.patch_embed2 = PatchEmbedding(36, self.embed_dim * 2, patch_size=1)
         self.patch_embed3 = PatchEmbedding(72, self.embed_dim * 4, patch_size=1)
         self.patch_embed4 = PatchEmbedding(144, self.embed_dim * 8, patch_size=1)
+
+        # Fusion layers for encoder
+        self.fusion2 = nn.Linear(self.embed_dim * 4, self.embed_dim * 2)  # For enc2_input
+        self.fusion3 = nn.Linear(self.embed_dim * 8, self.embed_dim * 4)  # For enc3_input  
+        self.fusion4 = nn.Linear(self.embed_dim * 16, self.embed_dim * 8) # For enc4_input
 
         # Stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(self.depths))]
@@ -203,7 +208,7 @@ class Hformer(nn.Module):
         e2_reshaped = e2.view(B, H2, W2, -1).permute(0, 3, 1, 2)
         enc2_input = torch.cat([enc1_reshaped, e2_reshaped], dim=1)
         enc2_input = enc2_input.flatten(2).transpose(1, 2)
-        enc2_input = nn.Linear(enc2_input.shape[-1], self.embed_dim * 2).to(x.device)(enc2_input)
+        enc2_input = self.fusion2(enc2_input)
 
         enc2, H2_down, W2_down = self.encoder2(enc2_input, H2, W2)  # -> 60x60x256
         enc2 = self.norm3(enc2)
@@ -213,7 +218,7 @@ class Hformer(nn.Module):
         e3_reshaped = e3.view(B, H3, W3, -1).permute(0, 3, 1, 2)
         enc3_input = torch.cat([enc2_reshaped, e3_reshaped], dim=1)
         enc3_input = enc3_input.flatten(2).transpose(1, 2)
-        enc3_input = nn.Linear(enc3_input.shape[-1], self.embed_dim * 4).to(x.device)(enc3_input)
+        enc3_input = self.fusion3(enc3_input)
 
         enc3, H3_down, W3_down = self.encoder3(enc3_input, H3, W3)  # -> 30x30x512
         enc3 = self.norm4(enc3)
@@ -223,7 +228,7 @@ class Hformer(nn.Module):
         e4_reshaped = e4.view(B, H4, W4, -1).permute(0, 3, 1, 2)
         enc4_input = torch.cat([enc3_reshaped, e4_reshaped], dim=1)
         enc4_input = enc4_input.flatten(2).transpose(1, 2)
-        enc4_input = nn.Linear(enc4_input.shape[-1], self.embed_dim * 8).to(x.device)(enc4_input)
+        enc4_input = self.fusion4(enc4_input)
 
         # BOTTLENECK
         bottleneck, H_bottle, W_bottle = self.bottleneck(enc4_input, H4, W4)  # 30x30x512
@@ -237,19 +242,19 @@ class Hformer(nn.Module):
         # DECODER
         # Decoder 4: 30x30 -> 60x60
         dec4, H_dec4, W_dec4 = self.decoder4[0](bottleneck, H_bottle, W_bottle)
-        dec4_cat = torch.cat([dec4, enc3], dim=-1)
+        dec4_cat = torch.cat([dec4, enc2], dim=-1)
         dec4_cat = self.decoder4[1](dec4_cat)
         dec4, _, _ = self.decoder4[2](dec4_cat, H_dec4, W_dec4)
 
         # Decoder 3: 60x60 -> 120x120
         dec3, H_dec3, W_dec3 = self.decoder3[0](dec4, H_dec4, W_dec4)
-        dec3_cat = torch.cat([dec3, enc2], dim=-1)
+        dec3_cat = torch.cat([dec3, enc1], dim=-1)
         dec3_cat = self.decoder3[1](dec3_cat)
         dec3, _, _ = self.decoder3[2](dec3_cat, H_dec3, W_dec3)
 
         # Decoder 2: 120x120 -> 240x240
         dec2, H_dec2, W_dec2 = self.decoder2[0](dec3, H_dec3, W_dec3)
-        dec2_cat = torch.cat([dec2, enc1], dim=-1)
+        dec2_cat = torch.cat([dec2, e1], dim=-1)
         dec2_cat = self.decoder2[1](dec2_cat)
         dec2, _, _ = self.decoder2[2](dec2_cat, H_dec2, W_dec2)
 
