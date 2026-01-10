@@ -19,6 +19,7 @@ Expected structure:
 
 import os
 import time
+import csv
 import argparse
 from pathlib import Path
 
@@ -70,6 +71,10 @@ class Config:
     CHECKPOINT_DIR = Path("checkpoints")
     SAVE_EVERY = 10  # Save checkpoint every N epochs
     
+    # Logging
+    LOG_DIR = Path("logs")
+    CSV_LOG_FILE = LOG_DIR / "training_log.csv"
+    
     # Random seed
     SEED = 42
 
@@ -79,13 +84,13 @@ class Config:
 # =============================================================================
 class FringeFPPDatasetPNG(Dataset):
     """
-    Dataset using captured fringe PNG and PNG depth maps organized by fpp_dataset_preparer.py
+    Dataset using PNG depth maps organized by fpp_dataset_preparer.py
     
     File naming convention (same base name for both):
         fringe/wooden_board_A60.png → depth/wooden_board_A60.png
         fringe/vial_A120.png → depth/vial_A120.png
     
-    The PNG depth maps should already be normalized to uint16 range [0, 65535]
+    The PNG files should already be normalized to uint16 range [0, 65535]
     where 0 = background and (0, 65535] = normalized depth
     """
     
@@ -99,7 +104,7 @@ class FringeFPPDatasetPNG(Dataset):
         if not self.fringe_files:
             raise ValueError(f"No PNG files found in {fringe_dir}")
         
-        # Find matching normalized depth PNGs
+        # Find matching depth PNGs
         self.pairs = []
         missing = []
         
@@ -132,7 +137,7 @@ class FringeFPPDatasetPNG(Dataset):
         if missing:
             print(f"⚠ Warning: {len(missing)}/{len(self.fringe_files)} fringe images have no depth match")
             if len(missing) <= 10:
-                print(f"  Missing: {missing}")
+                print(f"  Missing depth files for: {missing}")
         
         print(f"✓ Loaded {len(self.pairs)} sample pairs from {fringe_dir}")
     
@@ -174,10 +179,11 @@ class FringeFPPDatasetPNG(Dataset):
 # =============================================================================
 # Training Functions
 # =============================================================================
-def train_epoch(model, dataloader, criterion, optimizer, device):
-    """Train for one epoch"""
+def train_epoch(model, dataloader, criterion, optimizer, device, start_iteration=0):
+    """Train for one epoch and return loss + final iteration count"""
     model.train()
     running_loss = 0.0
+    iteration = start_iteration
     
     pbar = tqdm(dataloader, desc="Training", leave=False)
     for fringe, depth, _ in pbar:
@@ -194,9 +200,10 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
         optimizer.step()
         
         running_loss += loss.item()
+        iteration += 1
         pbar.set_postfix({"loss": f"{loss.item():.6f}"})
     
-    return running_loss / len(dataloader)
+    return running_loss / len(dataloader), iteration
 
 
 def validate(model, dataloader, criterion, device):
@@ -219,8 +226,8 @@ def validate(model, dataloader, criterion, device):
     return running_loss / len(dataloader)
 
 
-def save_checkpoint(model, optimizer, scheduler, epoch, loss, path):
-    """Save model checkpoint"""
+def save_checkpoint(model, optimizer, scheduler, epoch, loss, iteration, path):
+    """Save model checkpoint with iteration count"""
     path.parent.mkdir(parents=True, exist_ok=True)
     
     checkpoint = {
@@ -229,6 +236,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch, loss, path):
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict(),
         'loss': loss,
+        'iteration': iteration,
     }
     
     torch.save(checkpoint, path)
@@ -310,9 +318,23 @@ def main(args):
         min_lr=Config.MIN_LR,
     )
     
+    # Initialize CSV logging
+    Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    csv_path = Config.CSV_LOG_FILE
+    
+    # Create CSV file with headers if it doesn't exist
+    if not csv_path.exists():
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['epoch', 'train_loss', 'val_loss', 'time_seconds', 'learning_rate', 'iteration'])
+        print(f"Created CSV log: {csv_path}\n")
+    else:
+        print(f"Appending to existing CSV log: {csv_path}\n")
+    
     # Load checkpoint if resuming
     start_epoch = 0
     best_val_loss = float('inf')
+    iteration = 0  # Track total iterations across all epochs
     
     if args.resume and Path(args.resume).exists():
         print(f"Loading checkpoint: {args.resume}")
@@ -322,7 +344,8 @@ def main(args):
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_val_loss = checkpoint['loss']
-        print(f"Resuming from epoch {start_epoch}\n")
+        iteration = checkpoint.get('iteration', 0)  # Resume iteration count
+        print(f"Resuming from epoch {start_epoch}, iteration {iteration}\n")
     
     # Training loop
     print("Starting training...\n")
@@ -330,8 +353,10 @@ def main(args):
     for epoch in range(start_epoch, Config.NUM_EPOCHS):
         epoch_start = time.time()
         
-        # Train
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, Config.DEVICE)
+        # Train (now returns iteration count)
+        train_loss, iteration = train_epoch(
+            model, train_loader, criterion, optimizer, Config.DEVICE, iteration
+        )
         
         # Validate
         val_loss = validate(model, val_loader, criterion, Config.DEVICE)
@@ -342,18 +367,31 @@ def main(args):
         
         epoch_time = time.time() - epoch_start
         
+        # Log to CSV
+        with open(csv_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                epoch + 1,
+                float(train_loss),
+                float(val_loss),
+                int(round(epoch_time)),
+                float(current_lr),
+                int(iteration)
+            ])
+        
         # Print epoch summary
         print(f"Epoch [{epoch+1:3d}/{Config.NUM_EPOCHS}] "
               f"({epoch_time:5.1f}s) | "
               f"Train: {train_loss:.6f} | "
               f"Val: {val_loss:.6f} | "
-              f"LR: {current_lr:.2e}", end="")
+              f"LR: {current_lr:.2e} | "
+              f"Iter: {iteration}", end="")
         
         # Save best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             save_checkpoint(
-                model, optimizer, scheduler, epoch, val_loss,
+                model, optimizer, scheduler, epoch, val_loss, iteration,
                 Config.CHECKPOINT_DIR / "best_model.pth"
             )
             print(" ← NEW BEST!")
@@ -363,7 +401,7 @@ def main(args):
         # Save periodic checkpoint
         if (epoch + 1) % Config.SAVE_EVERY == 0:
             save_checkpoint(
-                model, optimizer, scheduler, epoch, val_loss,
+                model, optimizer, scheduler, epoch, val_loss, iteration,
                 Config.CHECKPOINT_DIR / f"checkpoint_epoch_{epoch+1:04d}.pth"
             )
         
@@ -376,6 +414,7 @@ def main(args):
     print("Training completed!")
     print(f"Best validation loss: {best_val_loss:.6f}")
     print(f"Best model saved: {Config.CHECKPOINT_DIR / 'best_model.pth'}")
+    print(f"Training log saved: {csv_path}")
     print("=" * 70)
 
 
