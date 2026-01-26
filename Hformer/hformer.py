@@ -19,14 +19,14 @@ class Hformer(nn.Module):
 
         # Configuration for 960x960 input
         # Patch embedding size 4 gives 240x240 feature maps
-        self.embed_dim = 32
+        self.embed_dim = 32 # 32, 60, 120
         self.depths = [1, 1, 2, 2]  # Depth of each stage
         self.num_heads = [1, 1, 2, 4]  # Attention heads for each stage
         self.window_size = 8  # Window size for local attention
         self.mlp_ratio = 2.0
         self.drop_rate = 0.0
         self.attn_drop_rate = 0.0
-        self.drop_path_rate = 0.4
+        self.drop_path_rate = 0.4 # 0.4, 0.5
 
         # CNN Backbone (HRNet-W18)
         # Outputs 4 feature maps with channels [18, 36, 72, 144]

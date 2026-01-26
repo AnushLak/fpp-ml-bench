@@ -8,7 +8,7 @@ Given a fringe image, this script:
 
 Usage:
     python visualize_predictions.py --model unet --checkpoint UNet/checkpoints/best_model.pth --image_idx 0
-    python visualize_predictions.py --model hformer --checkpoint Hformer/checkpoints_maskedrmse/best_model.pth --image_idx 0
+    python visualize_predictions.py --model hformer --checkpoint Hformer/checkpoints/best_model.pth --image_idx 0
 """
 
 import torch
@@ -256,6 +256,91 @@ def visualize_multiple_predictions(model, data_dir, num_samples=5, device='cuda'
         visualize_prediction(fringe_np, depth_gt_np, depth_pred_np, save_path)
 
 
+def process_all_images(model, data_dir, device='cuda', save_dir=None, model_name='model'):
+    """
+    Process ALL images in the data directory and save outputs
+    
+    Args:
+        model: Trained model
+        data_dir: Directory containing fringe and depth subdirectories
+        device: Device to run on
+        save_dir: Directory to save outputs
+        model_name: Name of model (unet/hformer) for output filenames
+    """
+    data_dir = Path(data_dir)
+    fringe_dir = data_dir / 'fringe'
+    depth_dir = data_dir / 'depth'
+    
+    fringe_files = sorted(list(fringe_dir.glob('*.png')))
+    
+    if not fringe_files:
+        print(f"❌ No PNG files found in {fringe_dir}")
+        return
+    
+    if save_dir:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"\n{'='*70}")
+    print(f"Processing {len(fringe_files)} images")
+    print(f"{'='*70}\n")
+    
+    success_count = 0
+    error_count = 0
+    
+    for idx, fringe_path in enumerate(fringe_files):
+        depth_path = depth_dir / fringe_path.name
+        
+        if not depth_path.exists():
+            print(f"⚠ [{idx+1}/{len(fringe_files)}] Skipping {fringe_path.name} - no matching depth map")
+            error_count += 1
+            continue
+        
+        try:
+            print(f"[{idx+1}/{len(fringe_files)}] Processing {fringe_path.name}...", end='')
+            
+            # Load data
+            fringe, depth_gt, fringe_np, depth_gt_np = load_fringe_depth_pair(
+                fringe_path, depth_path
+            )
+            
+            # Predict
+            depth_pred_np = predict_depth(model, fringe, device)
+            
+            # Clip to [0, 1] range
+            depth_pred_np_clipped = np.clip(depth_pred_np, 0, 1)
+            
+            if save_dir:
+                # Save as CSV
+                # np.savetxt(
+                #     save_dir / f"depth_pred_{model_name}_{fringe_path.stem}.csv", 
+                #     depth_pred_np_clipped, 
+                #     fmt="%.6f"
+                # )
+                
+                # Save as uint16 PNG
+                depth_pred_uint16 = (depth_pred_np_clipped * 65535).astype(np.uint16)
+                depth_pred_img = Image.fromarray(depth_pred_uint16)
+                depth_pred_img.save(
+                    save_dir / f"depth_pred_{model_name}_{fringe_path.stem}_normalized_depth.png"
+                )
+            
+            success_count += 1
+            print(" ✓")
+            
+        except Exception as e:
+            print(f" ❌ Error: {e}")
+            error_count += 1
+    
+    print(f"\n{'='*70}")
+    print(f"COMPLETE")
+    print(f"{'='*70}")
+    print(f"✓ Successfully processed: {success_count}/{len(fringe_files)}")
+    if error_count > 0:
+        print(f"❌ Errors: {error_count}")
+    print(f"Output directory: {save_dir}")
+
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -266,16 +351,19 @@ def main():
                         help='Model type (unet or hformer)')
     parser.add_argument('--checkpoint', type=str, required=True,
                         help='Path to model checkpoint')
-    parser.add_argument('--data_dir', type=str, default='/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth/test',
+    parser.add_argument('--data_dir', type=str, 
+                        default='/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth/test',
                         help='Directory containing fringe and depth subdirectories')
     parser.add_argument('--image_idx', type=int, default=None,
-                        help='Specific image index to visualize (default: visualize first 5)')
+                        help='Specific image index to visualize (default: process all images)')
     parser.add_argument('--num_samples', type=int, default=5,
-                        help='Number of samples to visualize if image_idx not specified')
+                        help='Number of samples to visualize if using --visualize flag')
     parser.add_argument('--save_dir', type=str, default='visualizations',
                         help='Directory to save visualizations')
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device to use (cuda or cpu)')
+    parser.add_argument('--visualize', action='store_true',
+                        help='Show visualizations (default: just save outputs)')
     
     args = parser.parse_args()
     
@@ -293,11 +381,10 @@ def main():
     
     print("✓ Model loaded successfully!")
     
-    # Visualize specific image or multiple images
     data_dir = Path(args.data_dir)
     
     if args.image_idx is not None:
-        # Visualize specific image
+        # Visualize specific image (original behavior)
         fringe_dir = data_dir / 'fringe'
         depth_dir = data_dir / 'depth'
         
@@ -323,22 +410,35 @@ def main():
         
         # Predict
         depth_pred_np = predict_depth(model, fringe, device)
+        depth_pred_np_clipped = np.clip(depth_pred_np, 0, 1)
         
-        # Visualize
-        save_path = None
+        # Save outputs
         if args.save_dir:
             save_dir = Path(args.save_dir)
             save_dir.mkdir(parents=True, exist_ok=True)
-            save_path = save_dir / f"prediction_{args.model}_{fringe_path.stem}.png"
+            
+            np.savetxt(save_dir / f"depth_pred_{args.model}_{fringe_path.stem}.csv", 
+                      depth_pred_np_clipped, fmt="%.6f")
+            
+            depth_pred_uint16 = (depth_pred_np_clipped * 65535).astype(np.uint16)
+            depth_pred_img = Image.fromarray(depth_pred_uint16)
+            depth_pred_img.save(save_dir / f"depth_pred_{args.model}_{fringe_path.stem}_normalized_depth.png")
+            
+            print(f"✓ Saved outputs to: {save_dir}")
         
-        visualize_prediction(fringe_np, depth_gt_np, depth_pred_np, save_path)
+        # Visualize if requested
+        if args.visualize:
+            visualize_prediction(fringe_np, depth_gt_np, depth_pred_np_clipped, None)
         
-    else:
-        # Visualize multiple images
+    elif args.visualize:
+        # Visualize multiple images (original behavior)
         print(f"\nVisualizing {args.num_samples} samples from {data_dir}")
         visualize_multiple_predictions(
             model, data_dir, args.num_samples, device, args.save_dir
         )
+    else:
+        # NEW: Process all images without visualization
+        process_all_images(model, data_dir, device, args.save_dir, args.model)
     
     print("\n✓ Done!")
 

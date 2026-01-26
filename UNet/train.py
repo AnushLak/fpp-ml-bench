@@ -22,6 +22,7 @@ import time
 import csv
 import argparse
 from pathlib import Path
+import scipy.io as sio
 
 import numpy as np
 import torch
@@ -31,7 +32,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from PIL import Image
 from tqdm import tqdm
 
-from unet import UNetFPP, MaskedRMSELoss, RMSELoss
+from unet import UNetFPP, RMSELoss, MaskedRMSELoss, HybridRMSELoss, L1Loss, MaskedL1Loss, HybridL1Loss, HybridMaskedRMSEWithMaskedL1
 
 
 # =============================================================================
@@ -40,7 +41,7 @@ from unet import UNetFPP, MaskedRMSELoss, RMSELoss
 class Config:
     """Training configuration"""
     # Data paths (MODIFY THESE)
-    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
+    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_training_data_depth_raw")
     TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
     TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
     VAL_FRINGE = DATA_ROOT / "val" / "fringe"
@@ -51,10 +52,10 @@ class Config:
     # Model parameters
     IN_CHANNELS = 1
     OUT_CHANNELS = 1
-    DROPOUT_RATE = 0.5
+    DROPOUT_RATE = 0.0
     
     # Training hyperparameters
-    BATCH_SIZE = 4
+    BATCH_SIZE = 2
     NUM_EPOCHS = 1000
     INITIAL_LR = 1e-4
     MIN_LR = 1e-6
@@ -65,14 +66,14 @@ class Config:
     
     # Device
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    NUM_WORKERS = 4
+    NUM_WORKERS = 1
     
     # Checkpointing
-    CHECKPOINT_DIR = Path("checkpoints")
+    CHECKPOINT_DIR = Path("checkpoints_MaskedRMSELoss")
     SAVE_EVERY = 10  # Save checkpoint every N epochs
     
     # Logging
-    LOG_DIR = Path("logs")
+    LOG_DIR = Path("logs_MaskedRMSELoss")
     CSV_LOG_FILE = LOG_DIR / "training_log.csv"
     
     # Random seed
@@ -83,20 +84,12 @@ class Config:
 # Dataset for PNG Depth Maps
 # =============================================================================
 class FringeFPPDatasetPNG(Dataset):
-    """
-    Dataset using PNG depth maps organized by fpp_dataset_preparer.py
+    """Dataset using depth maps organized by fpp_dataset_preparer.py"""
     
-    File naming convention (same base name for both):
-        fringe/wooden_board_A60.png → depth/wooden_board_A60.png
-        fringe/vial_A120.png → depth/vial_A120.png
-    
-    The PNG files should already be normalized to uint16 range [0, 65535]
-    where 0 = background and (0, 65535] = normalized depth
-    """
-    
-    def __init__(self, fringe_dir: Path, depth_dir: Path):
+    def __init__(self, fringe_dir: Path, depth_dir: Path, depth_key="depthMap"):
         self.fringe_dir = Path(fringe_dir)
         self.depth_dir = Path(depth_dir)
+        self.depth_key = depth_key
         
         # Get all fringe images (PNG only)
         self.fringe_files = sorted(list(self.fringe_dir.glob("*.png")))
@@ -112,8 +105,7 @@ class FringeFPPDatasetPNG(Dataset):
             stem = fringe_path.stem  # e.g., "wooden_board_A60", "vial_A120"
 
             # fpp_dataset_preparer.py copies files with SAME base name
-            # fringe/wooden_board_A60.png → depth/wooden_board_A60.png
-            depth_path = self.depth_dir / f"{stem}.png"
+            depth_path = self.depth_dir / f"{stem}.mat"
 
             if depth_path.exists():
                 self.pairs.append((fringe_path, depth_path))
@@ -121,11 +113,6 @@ class FringeFPPDatasetPNG(Dataset):
                 missing.append(stem)
 
         if not self.pairs:
-            print(f"❌ No matching depth files found!")
-            print(f"\nExpected pattern:")
-            print(f"  Fringe: {self.fringe_dir}/wooden_board_A60.png")
-            print(f"  Depth:  {self.depth_dir}/wooden_board_A60.png")
-            print(f"\nFirst few fringe files found:")
             for f in self.fringe_files[:5]:
                 print(f"  {f.name}")
             print(f"\nFirst few files in depth directory:")
@@ -151,28 +138,43 @@ class FringeFPPDatasetPNG(Dataset):
         fringe = Image.open(fringe_path).convert('L')
         fringe = np.array(fringe, dtype=np.float32)
         
-        # Normalize to [0, 1] if needed
-        if fringe.max() > 1.5:
-            fringe = fringe / 255.0
+        # Normalize to [0, 1]
+        fringe = fringe / 255.0
         
-        # Load normalized depth from PNG (uint16 → float32)
-        depth_uint16 = np.array(Image.open(depth_path))
-        
-        # Convert uint16 [0, 65535] to float32 [0, 1]
-        depth = depth_uint16.astype(np.float32) / 65535.0
-        
-        # Verify shape consistency
+        # Load depth from mat
+        mat = sio.loadmat(depth_path)
+
+        if self.depth_key not in mat:
+            raise KeyError(
+                f"Key '{self.depth_key}' not found in {depth_path.name}. "
+                f"Available keys: {list(mat.keys())}"
+            )
+
+        depth = mat[self.depth_key]
+
+        # Ensure shape (H, W)
+        if depth.ndim != 2:
+            raise ValueError(
+                f"Depth must be 2D, got shape {depth.shape} in {depth_path}"
+            )
+
+        # Convert double → float32
+        depth = depth.astype(np.float32)
+        # Normalize depth mm → meters
+        depth = depth / 1000.0
+
+        # Shape check
         if fringe.shape != depth.shape:
             raise ValueError(
-                f"Shape mismatch: fringe {fringe.shape} vs depth {depth.shape}\n"
-                f"  Fringe: {fringe_path}\n"
-                f"  Depth:  {depth_path}"
+                f"Shape mismatch:\n"
+                f"  Fringe: {fringe.shape} ({fringe_path})\n"
+                f"  Depth:  {depth.shape} ({depth_path})"
             )
-        
-        # Convert to tensors (add channel dimension)
+
+        # Convert to tensors
         fringe = torch.from_numpy(fringe).unsqueeze(0)  # (1, H, W)
-        depth = torch.from_numpy(depth).unsqueeze(0)    # (1, H, W)
-        
+        depth  = torch.from_numpy(depth).unsqueeze(0)   # (1, H, W)
+
         return fringe, depth, str(fringe_path.name)
 
 
@@ -272,7 +274,7 @@ def main(args):
         print(f"❌ Error loading data: {e}")
         print("\nExpected file structure:")
         print("  data/train/fringe/object_001_a000.png")
-        print("  data/train/depth/object_001_a000_normalized_depth.png")
+        print("  data/train/depth/object_001_a000_depth.mat")
         return
     
     # Create dataloaders
@@ -304,10 +306,15 @@ def main(args):
     print(f"Model parameters: {total_params:,}\n")
     
     # Loss function
-    criterion = RMSELoss()
+    criterion = MaskedRMSELoss()
     
     # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=Config.INITIAL_LR)
+    # optimizer = torch.optim.RMSprop(model.parameters(), lr=Config.INITIAL_LR)
+    optimizer = torch.optim.RMSprop(
+        model.parameters(),
+        lr=Config.INITIAL_LR,
+        weight_decay=1e-5
+    )
     
     # Learning rate scheduler
     scheduler = ReduceLROnPlateau(

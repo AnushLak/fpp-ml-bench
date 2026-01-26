@@ -27,7 +27,7 @@ class Config:
     """Training configuration - matches UNet setup"""
     
     # Data paths
-    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_unet_training_data_normalized_depth")
+    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_training_data")
     TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
     TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
     VAL_FRINGE = DATA_ROOT / "val" / "fringe"
