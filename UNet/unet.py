@@ -175,43 +175,7 @@ class HybridRMSELoss(nn.Module):
 
         # Combined loss
         return self.alpha * masked_rmse + (1 - self.alpha) * global_rmse
-    
 
-class HybridMaskedRMSEWithMaskedL1(nn.Module):
-    """
-    Masked RMSE + weak global RMSE + masked L1.
-    This sharpens interior geometry without letting background dominate.
-    """
-    def __init__(self, alpha=0.8, lambda_l1=0.05, eps=1e-8):
-        super().__init__()
-        self.alpha = alpha
-        self.lambda_l1 = lambda_l1
-        self.eps = eps
-
-    def forward(self, pred, target):
-        # Mask for valid object pixels
-        mask = (target > 0).float()
-
-        # Masked RMSE (object only)
-        diff_masked = (pred - target) * mask
-        mse_masked = (diff_masked * diff_masked).sum() / mask.sum().clamp(min=self.eps)
-        masked_rmse = torch.sqrt(mse_masked + self.eps)
-
-        # Global RMSE (all pixels)
-        mse_global = ((pred - target) ** 2).mean()
-        global_rmse = torch.sqrt(mse_global + self.eps)
-
-        # Masked L1 (object only)
-        masked_l1 = (diff_masked.abs().sum() / mask.sum().clamp(min=self.eps))
-
-        # Combined loss
-        loss = (
-            self.alpha * masked_rmse +
-            (1 - self.alpha) * global_rmse +
-            self.lambda_l1 * masked_l1
-        )
-
-        return loss
 
 class L1Loss(nn.Module):
     """
@@ -223,6 +187,7 @@ class L1Loss(nn.Module):
 
     def forward(self, pred, target):
         return torch.abs(pred - target).mean()
+
 
 class MaskedL1Loss(nn.Module):
     """
@@ -245,7 +210,8 @@ class MaskedL1Loss(nn.Module):
         masked_l1 = diff.sum() / num_valid
 
         return masked_l1
-    
+
+ 
 class HybridL1Loss(nn.Module):
     """
     Masked L1 + weak global L1 anchor.

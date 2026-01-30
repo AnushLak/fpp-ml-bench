@@ -32,7 +32,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from PIL import Image
 from tqdm import tqdm
 
-from unet import UNetFPP, RMSELoss, MaskedRMSELoss, HybridRMSELoss, L1Loss, MaskedL1Loss, HybridL1Loss, HybridMaskedRMSEWithMaskedL1
+from unet import UNetFPP, RMSELoss, MaskedRMSELoss, HybridRMSELoss, L1Loss, MaskedL1Loss, HybridL1Loss
 
 
 # =============================================================================
@@ -40,44 +40,79 @@ from unet import UNetFPP, RMSELoss, MaskedRMSELoss, HybridRMSELoss, L1Loss, Mask
 # =============================================================================
 class Config:
     """Training configuration"""
-    # Data paths (MODIFY THESE)
-    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_training_data_depth_raw")
-    TRAIN_FRINGE = DATA_ROOT / "train" / "fringe"
-    TRAIN_DEPTH = DATA_ROOT / "train" / "depth"
-    VAL_FRINGE = DATA_ROOT / "val" / "fringe"
-    VAL_DEPTH = DATA_ROOT / "val" / "depth"
-    TEST_FRINGE = DATA_ROOT / "test" / "fringe"
-    TEST_DEPTH = DATA_ROOT / "test" / "depth"
     
-    # Model parameters
-    IN_CHANNELS = 1
-    OUT_CHANNELS = 1
-    DROPOUT_RATE = 0.0
-    
-    # Training hyperparameters
-    BATCH_SIZE = 2
-    NUM_EPOCHS = 1000
-    INITIAL_LR = 1e-4
-    MIN_LR = 1e-6
-    
-    # Learning rate scheduler
-    LR_PATIENCE = 10  # Reduce LR if no improvement for 10 epochs
-    LR_FACTOR = 0.1   # Multiply LR by 0.1 when reducing
-    
-    # Device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    NUM_WORKERS = 1
-    
-    # Checkpointing
-    CHECKPOINT_DIR = Path("checkpoints_MaskedRMSELoss")
-    SAVE_EVERY = 10  # Save checkpoint every N epochs
-    
-    # Logging
-    LOG_DIR = Path("logs_MaskedRMSELoss")
-    CSV_LOG_FILE = LOG_DIR / "training_log.csv"
-    
-    # Random seed
-    SEED = 42
+    def __init__(self, dataset_type="_raw", loss_type="rmse", alpha=0.9):
+        """
+        Initialize config with dataset type and loss function
+        
+        Args:
+            dataset_type: One of "_raw", "_global_normalized", "_individual_normalized"
+            loss_type: One of "rmse", "masked_rmse", "hybrid_rmse", "l1", "masked_l1", "hybrid_l1"
+        
+        """
+        # Validate dataset type
+        valid_types = ["_raw", "_global_normalized", "_individual_normalized"]
+        if dataset_type not in valid_types:
+            raise ValueError(f"dataset_type must be one of {valid_types}, got {dataset_type}")
+        
+        # Validate loss type
+        valid_losses = ["rmse", "masked_rmse", "hybrid_rmse", "l1", "masked_l1", "hybrid_l1"]
+        if loss_type not in valid_losses:
+            raise ValueError(f"loss_type must be one of {valid_losses}, got {loss_type}")
+        
+        self.dataset_type = dataset_type
+        self.loss_type = loss_type
+        self.alpha = alpha  # for hybrid losses
+        
+        # Data paths (MODIFY BASE PATH ONLY)
+        base_path = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/training_datasets")
+        data_root = base_path / f"training_data_depth{dataset_type}"
+        
+        self.DATA_ROOT = data_root
+        self.TRAIN_FRINGE = data_root / "train" / "fringe"
+        self.TRAIN_DEPTH = data_root / "train" / "depth"
+        self.VAL_FRINGE = data_root / "val" / "fringe"
+        self.VAL_DEPTH = data_root / "val" / "depth"
+        self.TEST_FRINGE = data_root / "test" / "fringe"
+        self.TEST_DEPTH = data_root / "test" / "depth"
+        
+        # Model parameters
+        self.IN_CHANNELS = 1
+        self.OUT_CHANNELS = 1
+        self.DROPOUT_RATE = 0.0
+        
+        # Training hyperparameters
+        self.BATCH_SIZE = 2
+        self.NUM_EPOCHS = 1000
+        self.INITIAL_LR = 1e-4
+        self.MIN_LR = 1e-6
+        
+        # Learning rate scheduler
+        self.LR_PATIENCE = 10  # Reduce LR if no improvement for 10 epochs
+        self.LR_FACTOR = 0.1   # Multiply LR by 0.1 when reducing
+        
+        # Device
+        self.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        self.NUM_WORKERS = 1
+        
+        # Checkpointing (dataset-specific)
+        self.CHECKPOINT_DIR = Path(f"checkpoints_{loss_type}_depth{dataset_type}")
+        self.SAVE_EVERY = 10  # Save checkpoint every N epochs
+        
+        # Logging (dataset-specific)
+        self.LOG_DIR = Path(f"logs_{loss_type}_depth{dataset_type}")
+        self.CSV_LOG_FILE = self.LOG_DIR / "training_log.csv"
+        
+        # Random seed
+        self.SEED = 42
+        
+        # Depth key for MAT files
+        if dataset_type == "_raw":
+            self.DEPTH_KEY = "depthMap"
+        elif dataset_type == "_global_normalized":
+            self.DEPTH_KEY = "depthMapMeters"
+        elif dataset_type == "_individual_normalized":
+            self.DEPTH_KEY = "depthMapNormalized"
 
 
 # =============================================================================
@@ -160,8 +195,8 @@ class FringeFPPDatasetPNG(Dataset):
 
         # Convert double → float32
         depth = depth.astype(np.float32)
-        # Normalize depth mm → meters
-        depth = depth / 1000.0
+        # If needed, normalize raw depth mm → meters
+        # depth = depth / 1000.0
 
         # Shape check
         if fringe.shape != depth.shape:
@@ -248,71 +283,97 @@ def save_checkpoint(model, optimizer, scheduler, epoch, loss, iteration, path):
 # Main Training Loop
 # =============================================================================
 def main(args):
+    # Initialize config with dataset type, loss type, and alpha for hybrid losses
+    config = Config(dataset_type=args.dataset_type, loss_type=args.loss, alpha=args.alpha)
+    
     # Set seed for reproducibility
-    torch.manual_seed(Config.SEED)
-    np.random.seed(Config.SEED)
+    torch.manual_seed(config.SEED)
+    np.random.seed(config.SEED)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(Config.SEED)
+        torch.cuda.manual_seed_all(config.SEED)
     
     print("=" * 70)
     print("UNet Training - Fringe Projection Profilometry")
     print("=" * 70)
-    print(f"Device: {Config.DEVICE}")
-    print(f"Batch size: {Config.BATCH_SIZE}")
-    print(f"Initial LR: {Config.INITIAL_LR}")
-    print(f"Min LR: {Config.MIN_LR}")
-    print(f"Epochs: {Config.NUM_EPOCHS}")
-    print(f"Using PNG depth maps (uint16 → float32 / 65535)")
+    print(f"Dataset type: {args.dataset_type}")
+    print(f"Loss function: {args.loss}")
+    print(f"Alpha (for hybrid losses): {args.alpha}")
+    print(f"Data root: {config.DATA_ROOT}")
+    print(f"Checkpoint dir: {config.CHECKPOINT_DIR}")
+    print(f"Log dir: {config.LOG_DIR}")
+    print(f"Depth MAT key: {config.DEPTH_KEY}")
+    print(f"Device: {config.DEVICE}")
+    print(f"Batch size: {config.BATCH_SIZE}")
+    print(f"Initial LR: {config.INITIAL_LR}")
+    print(f"Min LR: {config.MIN_LR}")
+    print(f"Epochs: {config.NUM_EPOCHS}")
     print("=" * 70)
     print()
     
     # Create datasets
     try:
-        train_dataset = FringeFPPDatasetPNG(Config.TRAIN_FRINGE, Config.TRAIN_DEPTH)
-        val_dataset = FringeFPPDatasetPNG(Config.VAL_FRINGE, Config.VAL_DEPTH)
+        train_dataset = FringeFPPDatasetPNG(
+            config.TRAIN_FRINGE, 
+            config.TRAIN_DEPTH,
+            depth_key=config.DEPTH_KEY
+        )
+        val_dataset = FringeFPPDatasetPNG(
+            config.VAL_FRINGE, 
+            config.VAL_DEPTH,
+            depth_key=config.DEPTH_KEY
+        )
     except Exception as e:
         print(f"❌ Error loading data: {e}")
         print("\nExpected file structure:")
-        print("  data/train/fringe/object_001_a000.png")
-        print("  data/train/depth/object_001_a000_depth.mat")
+        print(f"  {config.TRAIN_FRINGE}/object_001_a000.png")
+        print(f"  {config.TRAIN_DEPTH}/object_001_a000.mat")
         return
     
     # Create dataloaders
     train_loader = DataLoader(
         train_dataset,
-        batch_size=Config.BATCH_SIZE,
+        batch_size=config.BATCH_SIZE,
         shuffle=True,
-        num_workers=Config.NUM_WORKERS,
-        pin_memory=(Config.DEVICE == "cuda")
+        num_workers=config.NUM_WORKERS,
+        pin_memory=(config.DEVICE == "cuda")
     )
     
     val_loader = DataLoader(
         val_dataset,
-        batch_size=Config.BATCH_SIZE,
+        batch_size=config.BATCH_SIZE,
         shuffle=False,
-        num_workers=Config.NUM_WORKERS,
-        pin_memory=(Config.DEVICE == "cuda")
+        num_workers=config.NUM_WORKERS,
+        pin_memory=(config.DEVICE == "cuda")
     )
     
     # Create model
     model = UNetFPP(
-        in_channels=Config.IN_CHANNELS,
-        out_channels=Config.OUT_CHANNELS,
-        dropout_rate=Config.DROPOUT_RATE
-    ).to(Config.DEVICE)
+        in_channels=config.IN_CHANNELS,
+        out_channels=config.OUT_CHANNELS,
+        dropout_rate=config.DROPOUT_RATE
+    ).to(config.DEVICE)
     
     # Print model info
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {total_params:,}\n")
+
+    # Loss function - select based on config
+    loss_functions = {
+        "rmse": RMSELoss(),
+        "masked_rmse": MaskedRMSELoss(),
+        "hybrid_rmse": HybridRMSELoss(alpha=config.alpha),
+        "l1": L1Loss(),
+        "masked_l1": MaskedL1Loss(),
+        "hybrid_l1": HybridL1Loss(alpha=config.alpha),
+    }
     
-    # Loss function
-    criterion = MaskedRMSELoss()
+    criterion = loss_functions[config.loss_type]
+    print(f"Using loss function: {config.loss_type}\n")
     
     # Optimizer
-    # optimizer = torch.optim.RMSprop(model.parameters(), lr=Config.INITIAL_LR)
     optimizer = torch.optim.RMSprop(
         model.parameters(),
-        lr=Config.INITIAL_LR,
+        lr=config.INITIAL_LR,
         weight_decay=1e-5
     )
     
@@ -320,14 +381,14 @@ def main(args):
     scheduler = ReduceLROnPlateau(
         optimizer,
         mode='min',
-        factor=Config.LR_FACTOR,
-        patience=Config.LR_PATIENCE,
-        min_lr=Config.MIN_LR,
+        factor=config.LR_FACTOR,
+        patience=config.LR_PATIENCE,
+        min_lr=config.MIN_LR,
     )
     
     # Initialize CSV logging
-    Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
-    csv_path = Config.CSV_LOG_FILE
+    config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    csv_path = config.CSV_LOG_FILE
     
     # Create CSV file with headers if it doesn't exist
     if not csv_path.exists():
@@ -345,7 +406,7 @@ def main(args):
     
     if args.resume and Path(args.resume).exists():
         print(f"Loading checkpoint: {args.resume}")
-        checkpoint = torch.load(args.resume, map_location=Config.DEVICE)
+        checkpoint = torch.load(args.resume, map_location=config.DEVICE)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -357,16 +418,16 @@ def main(args):
     # Training loop
     print("Starting training...\n")
     
-    for epoch in range(start_epoch, Config.NUM_EPOCHS):
+    for epoch in range(start_epoch, config.NUM_EPOCHS):
         epoch_start = time.time()
         
         # Train (now returns iteration count)
         train_loss, iteration = train_epoch(
-            model, train_loader, criterion, optimizer, Config.DEVICE, iteration
+            model, train_loader, criterion, optimizer, config.DEVICE, iteration
         )
         
         # Validate
-        val_loss = validate(model, val_loader, criterion, Config.DEVICE)
+        val_loss = validate(model, val_loader, criterion, config.DEVICE)
         
         # Update learning rate
         scheduler.step(val_loss)
@@ -387,7 +448,7 @@ def main(args):
             ])
         
         # Print epoch summary
-        print(f"Epoch [{epoch+1:3d}/{Config.NUM_EPOCHS}] "
+        print(f"Epoch [{epoch+1:3d}/{config.NUM_EPOCHS}] "
               f"({epoch_time:5.1f}s) | "
               f"Train: {train_loss:.6f} | "
               f"Val: {val_loss:.6f} | "
@@ -399,34 +460,42 @@ def main(args):
             best_val_loss = val_loss
             save_checkpoint(
                 model, optimizer, scheduler, epoch, val_loss, iteration,
-                Config.CHECKPOINT_DIR / "best_model.pth"
+                config.CHECKPOINT_DIR / "best_model.pth"
             )
             print(" ← NEW BEST!")
         else:
             print()
         
         # Save periodic checkpoint
-        if (epoch + 1) % Config.SAVE_EVERY == 0:
+        if (epoch + 1) % config.SAVE_EVERY == 0:
             save_checkpoint(
                 model, optimizer, scheduler, epoch, val_loss, iteration,
-                Config.CHECKPOINT_DIR / f"checkpoint_epoch_{epoch+1:04d}.pth"
+                config.CHECKPOINT_DIR / f"checkpoint_epoch_{epoch+1:04d}.pth"
             )
         
         # Early stopping if LR reaches minimum
-        if current_lr <= Config.MIN_LR:
-            print(f"\n⚠ Learning rate reached minimum ({Config.MIN_LR}). Stopping.")
+        if current_lr <= config.MIN_LR:
+            print(f"\n⚠ Learning rate reached minimum ({config.MIN_LR}). Stopping.")
             break
     
     print("\n" + "=" * 70)
     print("Training completed!")
     print(f"Best validation loss: {best_val_loss:.6f}")
-    print(f"Best model saved: {Config.CHECKPOINT_DIR / 'best_model.pth'}")
+    print(f"Best model saved: {config.CHECKPOINT_DIR / 'best_model.pth'}")
     print(f"Training log saved: {csv_path}")
     print("=" * 70)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train UNet for FPP")
+    parser.add_argument("--dataset_type", type=str, default="_global_normalized",
+                        choices=["_raw", "_global_normalized", "_individual_normalized"],
+                        help="Dataset type to use for training")
+    parser.add_argument("--loss", type=str, default="rmse",
+                        choices=["rmse", "masked_rmse", "hybrid_rmse", "l1", "masked_l1", "hybrid_l1"],
+                        help="Loss function to use for training")
+    parser.add_argument("--alpha", type=float, default=0.9,
+                    help="Alpha parameter for hybrid loss functions (default: 0.9)")
     parser.add_argument("--resume", type=str, default=None,
                         help="Path to checkpoint to resume training")
     args = parser.parse_args()

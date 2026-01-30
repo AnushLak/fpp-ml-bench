@@ -32,8 +32,13 @@ export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 cd "/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/FPP-ML-Benchmarking/UNet" || exit 1
 
 # -----------------------------
-# Run training
+# Run training with dataset and loss arguments
 # -----------------------------
-python -u train.py
+# Pass the first argument ($1) as --dataset_type, second ($2) as --loss, and third ($3) as --alpha for hybrid losses to train.py
+if [ -z "$3" ]; then
+    python -u train.py --dataset_type "$1" --loss "$2"
+else
+    python -u train.py --dataset_type "$1" --loss "$2" --alpha "$3"
+fi
 
 echo "Job finished at: $(date)"
