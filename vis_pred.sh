@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="unet_vis_all_losses"
+#SBATCH --job-name="unet_vis_rmse_all_datasets"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --time=0-04:00:00
 #SBATCH --partition=nova
-#SBATCH --output=unet_vis_all_%j.out
-#SBATCH --error=unet_vis_all_%j.err
+#SBATCH --output=unet_vis_rmse_all_%j.out
+#SBATCH --error=unet_vis_rmse_all_%j.err
 
 # --------------------------------------------------
 # Environment setup
@@ -28,120 +28,105 @@ export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # Paths
 # --------------------------------------------------
 REPO_ROOT="/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/FPP-ML-Benchmarking"
-DATA_DIR="/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_training_data_depth_raw/test"
+
+# Base paths for datasets
+DATA_BASE="/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/training_datasets"
 
 cd "$REPO_ROOT" || exit 1
 
 # --------------------------------------------------
-# L1 Loss
+# 1. Raw Depth Dataset
 # --------------------------------------------------
-echo -e "\n\n========== L1 LOSS ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_L1Loss/best_model.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_L1Loss \
-        --device cuda
-done
+echo -e "\n\n=========================================="
+echo "PROCESSING: RAW DEPTH DATASET"
+echo "=========================================="
+
+python -u vis_pred.py \
+    --checkpoint UNet/checkpoints_rmse_depth_raw/best_model.pth \
+    --data_dir "$DATA_BASE/training_data_depth_raw/test" \
+    --dataset_type _raw \
+    --save_dir visualizations_rmse_depth_raw \
+    --device cuda \
+    --process_all
 
 # --------------------------------------------------
-# Masked L1 Loss
+# 2. Global Normalized Depth Dataset
 # --------------------------------------------------
-echo -e "\n\n========== MASKED L1 LOSS ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_MaskedL1Loss/best_model.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_MaskedL1Loss \
-        --device cuda
-done
+echo -e "\n\n=========================================="
+echo "PROCESSING: GLOBAL NORMALIZED DEPTH DATASET"
+echo "=========================================="
+
+python -u vis_pred.py \
+    --checkpoint UNet/checkpoints_rmse_depth_global_normalized/best_model.pth \
+    --data_dir "$DATA_BASE/training_data_depth_global_normalized/test" \
+    --dataset_type _global_normalized \
+    --save_dir visualizations_rmse_depth_global_normalized \
+    --device cuda \
+    --process_all
 
 # --------------------------------------------------
-# Hybrid L1 Loss (alpha = 0.9)
+# 3. Individual Normalized Depth Dataset
 # --------------------------------------------------
-echo -e "\n\n========== HYBRID L1 LOSS (alpha=0.9) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_HybridL1Loss_alpha09/best_model.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_HybridL1Loss_alpha09 \
-        --device cuda
-done
+echo -e "\n\n=========================================="
+echo "PROCESSING: INDIVIDUAL NORMALIZED DEPTH DATASET"
+echo "=========================================="
 
-# --------------------------------------------------
-# Hybrid L1 Loss (alpha = 0.8)
-# --------------------------------------------------
-echo -e "\n\n========== HYBRID L1 LOSS (alpha=0.8) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_HybridL1Loss_alpha08/best_model.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_HybridL1Loss_alpha08 \
-        --device cuda
-done
+python -u vis_pred.py \
+    --checkpoint UNet/checkpoints_rmse_depth_individual_normalized/best_model.pth \
+    --data_dir "$DATA_BASE/training_data_depth_individual_normalized/test" \
+    --dataset_type _individual_normalized \
+    --depth_params_dir "$DATA_BASE/info_depth_params" \
+    --save_dir visualizations_rmse_depth_individual_normalized \
+    --device cuda \
+    --process_all
 
-# --------------------------------------------------
-# Masked RMSE Loss (epoch 150)
-# --------------------------------------------------
-echo -e "\n\n========== MASKED RMSE LOSS (epoch 150) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_MaskedRMSELoss/checkpoint_epoch_0150.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_MaskedRMSELoss_epoch150 \
-        --device cuda
-done
+# # --------------------------------------------------
+# # 1. Raw Depth Dataset
+# # --------------------------------------------------
+# echo -e "\n\n=========================================="
+# echo "PROCESSING: RAW DEPTH DATASET"
+# echo "=========================================="
 
-# --------------------------------------------------
-# RMSE Loss (epoch 150)
-# --------------------------------------------------
-echo -e "\n\n========== RMSE LOSS (epoch 150) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_RMSELoss/checkpoint_epoch_0150.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_RMSELoss_epoch150 \
-        --device cuda
-done
+# python -u vis_pred.py \
+#     --checkpoint UNet/checkpoints_rmse_depth_raw/best_model.pth \
+#     --data_dir "$DATA_BASE/training_data_bgremoved_depth_raw/test" \
+#     --dataset_type _raw \
+#     --save_dir visualizations_rmse_bgremoved_depth_raw \
+#     --device cuda \
+#     --process_all
 
-# --------------------------------------------------
-# Hybrid RMSE Loss (alpha = 0.9, epoch 150)
-# --------------------------------------------------
-echo -e "\n\n========== HYBRID RMSE LOSS (alpha=0.9, epoch 150) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_HybridRMSELoss_alpha09/checkpoint_epoch_0150.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_HybridRMSELoss_alpha09_epoch150 \
-        --device cuda
-done
+# # --------------------------------------------------
+# # 2. Global Normalized Depth Dataset
+# # --------------------------------------------------
+# echo -e "\n\n=========================================="
+# echo "PROCESSING: GLOBAL NORMALIZED DEPTH DATASET"
+# echo "=========================================="
 
-# --------------------------------------------------
-# Hybrid RMSE Loss (alpha = 0.8, epoch 150)
-# --------------------------------------------------
-echo -e "\n\n========== HYBRID RMSE LOSS (alpha=0.8, epoch 150) ==========\n"
-for IDX in 23 0 7; do
-    python -u vis_pred.py \
-        --model unet \
-        --checkpoint UNet/checkpoints_HybridRMSELoss_alpha08/checkpoint_epoch_0150.pth \
-        --data_dir "$DATA_DIR" \
-        --image_idx $IDX \
-        --save_dir visualizations_HybridRMSELoss_alpha08_epoch150 \
-        --device cuda
-done
+# python -u vis_pred.py \
+#     --checkpoint UNet/checkpoints_rmse_depth_global_normalized/best_model.pth \
+#     --data_dir "$DATA_BASE/training_data_bgremoved_depth_global_normalized/test" \
+#     --dataset_type _global_normalized \
+#     --save_dir visualizations_rmse_bgremoved_depth_global_normalized \
+#     --device cuda \
+#     --process_all
 
+# # --------------------------------------------------
+# # 3. Individual Normalized Depth Dataset
+# # --------------------------------------------------
+# echo -e "\n\n=========================================="
+# echo "PROCESSING: INDIVIDUAL NORMALIZED DEPTH DATASET"
+# echo "=========================================="
+
+# python -u vis_pred.py \
+#     --checkpoint UNet/checkpoints_rmse_depth_individual_normalized/best_model.pth \
+#     --data_dir "$DATA_BASE/training_data_bgremoved_depth_individual_normalized/test" \
+#     --dataset_type _individual_normalized \
+#     --depth_params_dir "$DATA_BASE/info_depth_params" \
+#     --save_dir visualizations_rmse_bgremoved_depth_individual_normalized \
+#     --device cuda \
+#     --process_all
+
+echo -e "\n\n=========================================="
+echo "ALL VISUALIZATIONS COMPLETE"
+echo "=========================================="
 echo "Job finished at: $(date)"
