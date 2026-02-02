@@ -163,10 +163,10 @@ python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0
 | `--dataset_type` | str | `_individual_normalized` | Dataset normalization: `_raw`, `_global_normalized`, `_individual_normalized` |
 | `--loss` | str | `hybrid_l1` | Loss function: `rmse`, `masked_rmse`, `hybrid_rmse`, `l1`, `masked_l1`, `hybrid_l1` |
 | `--alpha` | float | 0.9 | Alpha parameter for hybrid losses (0-1), weight for masked component |
-| `--batch_size` | int | 2 (UNet), 1 (Hformer), 4 (ResUNet) | Training batch size |
+| `--batch_size` | int | 4 (UNet), 1 (Hformer), 4 (ResUNet) | Training batch size |
 | `--epochs` | int | 1000 (UNet/Hformer), 600 (ResUNet) | Number of training epochs |
 | `--lr` | float | 1e-4 | Initial learning rate |
-| `--dropout` | float | 0.5 (UNet), 0.0 (Hformer/ResUNet) | Dropout rate |
+| `--dropout` | float | 0.0 | Dropout rate |
 | `--resume` | str | None | Path to checkpoint to resume training |
 | `--num_workers` | int | 4 | Number of data loading workers |
 | `--save_every` | int | 10 | Save checkpoint every N epochs |
