@@ -1,4 +1,10 @@
 # Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data
+
+[![arXiv](https://img.shields.io/badge/arXiv-2601.08900-b31b1b.svg)](https://arxiv.org/abs/2601.08900)
+[![SPIE Photonics West](https://img.shields.io/badge/SPIE%20Photonics%20West-Presentation-blue)](https://spie.org/photonics-west/presentation/Comprehensive-machine-learning-benchmarking-for-fringe-projection-profilometry-with-photorealistic/13904-1)
+[![Python](https://img.shields.io/badge/Python-76.3%25-blue)](https://github.com/oadamharoon/text2nav)
+[![Jupyter](https://img.shields.io/badge/Jupyter%20Notebook-22.7%25-orange)](https://github.com/oadamharoon/text2nav)
+
 **Repository: FPP-ML-Bench**
 
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
