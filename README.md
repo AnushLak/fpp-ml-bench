@@ -193,33 +193,54 @@ Checkpoints are saved to `checkpoints/`:
    - Root Mean Squared Error on all pixels
    - Good for general regression
 
-$$
-\mathcal{L}_{\text{RMSE}} = \sqrt{\frac{1}{HW}\sum_{u=1}^{W}\sum_{v=1}^{H} (\hat{D}(u,v) - D(u,v))^2 + \epsilon}
-$$
+   $$
+   \mathcal{L}_{\text{RMSE}} = \sqrt{\frac{1}{HW}\sum_{u=1}^{W}\sum_{v=1}^{H} (\hat{D}(u,v) - D(u,v))^2 + \epsilon}
+   $$
 
-     where $\epsilon = 10^{-8}$ ensures numerical stability.
+   where $\epsilon = 10^{-8}$ ensures numerical stability.
 
 2. **Masked RMSE Loss** (`masked_rmse`)
    - RMSE computed only on valid pixels (depth > 0)
    - Ignores background, focuses on objects
+
+   $$
+   \mathcal{L}_{\text{MaskedRMSE}} = \sqrt{\frac{\sum_{u,v} \mathcal{M}(u,v) \cdot (\hat{D}(u,v) - D(u,v))^2}{\sum_{u,v} \mathcal{M}(u,v)} + \epsilon}
+   $$
 
 3. **Hybrid RMSE Loss** (`hybrid_rmse`)
    - Combines masked RMSE with weak global RMSE anchor
    - Formula: `α × masked_rmse + (1-α) × global_rmse`
    - Prevents scale drift while prioritizing objects
 
+   $$
+   \mathcal{L}_{\text{HybridRMSE}} = \alpha \cdot \mathcal{L}_{\text{MaskedRMSE}} + (1-\alpha) \cdot \mathcal{L}_{\text{RMSE}}
+   $$
+
 4. **L1 Loss** (`l1`)
    - Mean Absolute Error on all pixels
    - More robust to outliers than RMSE
+
+   $$
+   \mathcal{L}_{\text{L1}} = \frac{1}{HW}\sum_{u=1}^{W}\sum_{v=1}^{H} |\hat{D}(u,v) - D(u,v)|
+   $$
 
 5. **Masked L1 Loss** (`masked_l1`)
    - L1 computed only on valid pixels
    - Ignores background
 
+   $$
+   \mathcal{L}_{\text{MaskedL1}} = \frac{\sum_{u,v} \mathcal{M}(u,v) \cdot |\hat{D}(u,v) - D(u,v)|}{\sum_{u,v} \mathcal{M}(u,v)}
+   $$
+
 6. **Hybrid L1 Loss** (`hybrid_l1`) - **Recommended**
    - Combines masked L1 with weak global L1 anchor
    - Formula: `α × masked_l1 + (1-α) × global_l1`
    - Best balance between accuracy and stability
+
+   $$
+   \mathcal{L}_{\text{HybridL1}} = \alpha \cdot \mathcal{L}_{\text{MaskedL1}} + (1-\alpha) \cdot \mathcal{L}_{\text{L1}}
+   $$
+
 
 ### Choosing Alpha
 
