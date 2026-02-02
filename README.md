@@ -1,5 +1,6 @@
 # Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data
 **Repository: FPP-ML-Bench**
+
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
 ## Overview
