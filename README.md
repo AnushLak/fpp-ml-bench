@@ -14,7 +14,7 @@ This repository provides a standardized benchmarking framework for evaluating de
 
 <p align="center">
   <img src="images/virtus.png" width="90%" /><br/>
-  <sub><b>Archiectural Overview of VIRTUS-FPP</b></sub>
+  <sub><b>Architectural Overview of VIRTUS-FPP</b></sub>
 </p>
 
 The framework implements four state-of-the-art architectures with unified training pipelines, loss functions, and dataset handling:
