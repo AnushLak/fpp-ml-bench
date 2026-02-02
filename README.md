@@ -222,7 +222,7 @@ The `alpha` parameter controls the weight between masked and global components i
 - **Best for**: High-accuracy applications, complex fringe patterns
 
 ### ResUNet
-- **Parameters**: ~45M
+- **Parameters**: ~89M
 - **Input**: 960×960 grayscale fringe image
 - **Output**: 960×960 depth map
 - **Architecture**: U-Net with residual blocks and batch normalization
