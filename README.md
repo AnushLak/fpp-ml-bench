@@ -8,38 +8,14 @@
 
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
-<p align="center">
-  <img src="images/virtus.png" width="90%" />
-  <sub><b>Archiectural Overview of VIRTUS-FPP</b></sub>
-</p>
-
-<table align="center">
-  <tr>
-    <!-- <td align="center">
-      <img src="images/unet_predictions.gif" width="500"/><br/>
-      <sub><b>UNet</b></sub>
-    </td> -->
-    <td align="center">
-      <img src="images/hformer_predictions.gif" width="500"/><br/>
-      <sub><b>Hformer</b></sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="images/resunet_predictions.gif" width="500"/><br/>
-      <sub><b>ResUNet</b></sub>
-    </td>
-    <td align="center">
-      <img src="images/pix2pixhd_predictions.gif" width="500"/><br/>
-      <sub><b>pix2pixHD</b></sub>
-    </td>
-  </tr>
-</table>
-
-
 ## Overview
 
-This repository provides a standardized benchmarking framework for evaluating deep learning models on single-shot fringe projection profilometry (FPP) depth estimation. FPP is a 3D imaging technique that reconstructs depth maps from projected fringe patterns, enabling high-precision 3D reconstruction for industrial inspection, quality control, and computer vision applications.
+This repository provides a standardized benchmarking framework for evaluating deep learning models on single-shot fringe projection profilometry (FPP) depth estimation. All benchmark data were generated using [VIRTUS-FPP], the first photorealistic virtual sensor modeling pipeline for fringe projection profilometry. FPP is a 3D imaging technique that reconstructs depth maps from projected fringe patterns, enabling high-precision 3D reconstruction for industrial inspection, quality control, and computer vision applications.
+
+<p align="center">
+  <img src="images/virtus.png" width="90%" /><br/>
+  <sub><b>Archiectural Overview of VIRTUS-FPP</b></sub>
+</p>
 
 The framework implements four state-of-the-art architectures with unified training pipelines, loss functions, and dataset handling:
 
@@ -199,6 +175,33 @@ python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0
 | `--resume` | str | None | Path to checkpoint to resume training |
 | `--num_workers` | int | 4 | Number of data loading workers |
 | `--save_every` | int | 10 | Save checkpoint every N epochs |
+
+## Results
+
+All models were trained with the recommended training arguments from above.
+
+<table align="center">
+  <tr>
+    <!-- <td align="center">
+      <img src="images/unet_predictions.gif" width="250"/><br/>
+      <sub><b>UNet</b></sub>
+    </td> -->
+    <td align="center">
+      <img src="images/hformer_predictions.gif" width="500"/><br/>
+      <sub><b>Hformer</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="images/resunet_predictions.gif" width="500"/><br/>
+      <sub><b>ResUNet</b></sub>
+    </td>
+    <td align="center">
+      <img src="images/pix2pixhd_predictions.gif" width="500"/><br/>
+      <sub><b>pix2pixHD</b></sub>
+    </td>
+  </tr>
+</table>
 
 #### Resume Training
 
