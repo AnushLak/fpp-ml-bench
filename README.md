@@ -1,6 +1,6 @@
-# FPP-ML-Benchmarking
-
-Deep Learning Models for Single-Shot Fringe Projection Profilometry (FPP) Depth Estimation
+# Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data
+**Repository: FPP-ML-Bench**
+_Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
 ## Overview
 
@@ -11,6 +11,7 @@ The framework implements three state-of-the-art architectures with unified train
 - **UNet**: Classic encoder-decoder architecture with skip connections
 - **Hformer**: Hybrid CNN-Transformer model combining HRNet backbone with transformer encoder-decoder
 - **ResUNet**: Residual U-Net architecture with residual blocks for improved gradient flow
+- **pix2pixHD**: Conditional GAN with U-Net generator and PatchGAN discriminator
 
 ## Features
 
@@ -18,29 +19,39 @@ The framework implements three state-of-the-art architectures with unified train
 - 📊 **6 Loss Functions**: RMSE, Masked RMSE, Hybrid RMSE, L1, Masked L1, Hybrid L1
 - 🔄 **3 Normalization Schemes**: Raw, global normalization, individual normalization
 - 💾 **Flexible Data Format**: PNG fringe input + MAT depth output
-- 📈 **Comprehensive Logging**: CSV training logs with loss tracking
-- 🔧 **Configurable Training**: Command-line arguments for all hyperparameters
-- ⚡ **Resume Training**: Checkpoint-based training continuation
-- 🎨 **Clean Code Structure**: Modular design with shared components
 
 ## Repository Structure
 
 ```
-FPP-ML-Benchmarking/
-├── dataset.py              # Common dataloader for all models
-├── losses.py               # All 6 loss functions
-├── UNet/
-│   ├── unet.py            # Model architecture
-│   └── train.py           # Training script
-├── Hformer/
-│   ├── hformer.py         # Model architecture
-│   ├── hformer_parts.py   # Model components
-│   ├── hrnet_backbone.py  # HRNet backbone
-│   └── train.py           # Training script
-└── ResUNet/
-    ├── resunet.py         # Model architecture
-    ├── resunet_parts.py   # Model components
-    └── train.py           # Training script
+ FPP-ML-Benchmarking/
+  ├── dataset.py              # Common dataloader for all models
+  ├── losses.py               # All 6 loss functions
+  ├── UNet/
+  │   ├── unet.py            # Model architecture
+  │   └── train.py           # Training script
+  ├── Hformer/
+  │   ├── hformer.py         # Model architecture
+  │   ├── hformer_parts.py   # Model components
+  │   ├── hrnet_backbone.py  # HRNet backbone
+  │   └── train.py           # Training script
+  ├── ResUNet/
+  │   ├── resunet.py         # Model architecture
+  │   ├── resunet_parts.py   # Model components
+  │   └── train.py           # Training script
+  └── pix2pixHD/
+      ├── train.py           # Training script
+      ├── data/
+      │   ├── fringe_depth_dataset.py  # Dataset loader (uses root dataset.py)
+      │   └── data_loader.py           # Data loading utilities
+      ├── models/
+      │   ├── pix2pixHD_model.py       # Generator/Discriminator model
+      │   └── networks.py              # Network architectures
+      ├── options/
+      │   ├── base_options.py          # Base options
+      │   └── train_options.py         # Training options (--loss, --alpha, --dataset_type)
+      └── util/
+          ├── visualizer.py            # Training visualization
+          └── util.py                  # Utility functions
 ```
 
 ## Installation
@@ -50,21 +61,25 @@ FPP-ML-Benchmarking/
 - Python 3.8+
 - PyTorch 1.10+
 - CUDA 11.0+ (for GPU training)
+- SciPy 1.13+ (for depth matrix loading)
+- Pillow 11.2+
+- tqdm 4.6+ (for training tracking)
+- Matplotlib 3.8+
 
 ### Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/FPP-ML-Benchmarking.git
+git clone https://github.com/AnushLak/FPP-ML-Benchmarking.git
 cd FPP-ML-Benchmarking
 
 # Create virtual environment
-python -m venv venv
+python -m venv venv # or conda create --name <env_name>
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install numpy scipy pillow tqdm
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install numpy scipy pillow tqdm matplotlib
 ```
 
 ## Dataset Structure
@@ -105,7 +120,7 @@ Update the data paths in each model's training script if your data is located el
 All models share the same command-line interface:
 
 ```bash
-cd <model_name>  # UNet, Hformer, or ResUNet
+cd <model_name>  # UNet, Hformer, ResUNet or Pix2PixHD
 python train.py [OPTIONS]
 ```
 
@@ -127,6 +142,12 @@ python train.py --dataset_type _global_normalized --loss masked_rmse --batch_siz
 ```bash
 cd ResUNet
 python train.py --dataset_type _raw --loss hybrid_rmse --alpha 0.7 --lr 5e-5 --dropout 0.3
+```
+
+**Pix2PixHD with custom hyperparameters:**
+```bash
+cd pix2pixHD
+python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0.7 --lr 1e-5 --dropout 0.0
 ```
 
 #### Training Arguments
@@ -171,6 +192,8 @@ Checkpoints are saved to `checkpoints/`:
 1. **RMSE Loss** (`rmse`)
    - Root Mean Squared Error on all pixels
    - Good for general regression
+     $\mathcal{L}_{\text{RMSE}} = \sqrt{\frac{1}{HW}\sum_{u=1}^{W}\sum_{v=1}^{H} (\hat{D}(u,v) - D(u,v))^2 + \epsilon}$
+     where $\epsilon = 10^{-8}$ ensures numerical stability.
 
 2. **Masked RMSE Loss** (`masked_rmse`)
    - RMSE computed only on valid pixels (depth > 0)
