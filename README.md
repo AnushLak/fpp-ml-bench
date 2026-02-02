@@ -197,7 +197,7 @@ $$
 \mathcal{L}_{\text{RMSE}} = \sqrt{\frac{1}{HW}\sum_{u=1}^{W}\sum_{v=1}^{H} (\hat{D}(u,v) - D(u,v))^2 + \epsilon}
 $$
      
-where $\epsilon = 10^{-8}$ ensures numerical stability.
+    where $\epsilon = 10^{-8}$ ensures numerical stability.
 
 2. **Masked RMSE Loss** (`masked_rmse`)
    - RMSE computed only on valid pixels (depth > 0)
