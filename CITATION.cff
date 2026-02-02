@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software or dataset, please cite the following paper."
+type: software
+
+authors:
+  - family-names: "Lakshman"
+    given-names: "Anush"
+  - family-names: "Haroon"
+    given-names: "Adam"
+  - family-names: "Li"
+    given-names: "Beiwen"
+
+title: "Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data"
+
+year: 2026
+
+url: "https://arxiv.org/abs/2601.08900"
+
+identifiers:
+  - type: arxiv
+    value: "2601.08900"
+
+preferred-citation:
+  type: article
+  title: "Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data"
+  authors:
+    - family-names: "Lakshman"
+      given-names: "Anush"
+    - family-names: "Haroon"
+      given-names: "Adam"
+    - family-names: "Li"
+      given-names: "Beiwen"
+  year: 2026
+  journal: "arXiv"
+  url: "https://arxiv.org/abs/2601.08900"
