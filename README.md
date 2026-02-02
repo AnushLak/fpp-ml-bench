@@ -8,6 +8,17 @@
 
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
+<p align="center">
+  <img src="images/virtus.pdf" width="90%" />
+</p>
+
+<p align="center">
+  <!-- <img src="assets/unet.gif" width="24%" /> -->
+  <img src="images/hformer_predictions.gif" width="24%" />
+  <img src="images/resunet_predictions.gif" width="24%" />
+  <img src="images/pix2pixhd_predictions.gif" width="24%" />
+</p>
+
 ## Overview
 
 This repository provides a standardized benchmarking framework for evaluating deep learning models on single-shot fringe projection profilometry (FPP) depth estimation. FPP is a 3D imaging technique that reconstructs depth maps from projected fringe patterns, enabling high-precision 3D reconstruction for industrial inspection, quality control, and computer vision applications.
