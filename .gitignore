@@ -11,3 +11,6 @@ unet_train_*.err
 unet_vis_*.err
 unet_vis_*.out
 UNet_initial/
+logs/
+checkpoints/
+pix2pixHD/

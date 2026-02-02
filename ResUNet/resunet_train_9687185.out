@@ -1,0 +1,137 @@
+Job started at: Sun Feb  1 07:03:32 PM CST 2026
+Running on host: nova22-amp-8
+Job ID: 9687185
+GPUs on node: 1
+CUDA_VISIBLE_DEVICES: 0
+======================================================================
+ResUNet Training - Fringe Projection Profilometry
+======================================================================
+Device: cuda
+Dataset type: _individual_normalized
+Loss function: hybrid_l1
+Alpha: 0.9
+Batch size: 4
+Learning rate: 0.0001
+Dropout rate: 0.0
+======================================================================
+
+✓ Loaded 240 sample pairs from /work/arpawar/anushlak/SPIE-PW/training_data_depth_individual_normalized/train/fringe
+  Dataset type: _individual_normalized
+✓ Loaded 30 sample pairs from /work/arpawar/anushlak/SPIE-PW/training_data_depth_individual_normalized/val/fringe
+  Dataset type: _individual_normalized
+Initializing ResUNet model...
+Model parameters: 88,941,841
+
+Created CSV log: logs/training_log.csv
+
+Starting training...
+
+Epoch [  1/600] (103.0s) | Train: 0.573870 | Val: 0.265251 | LR: 1.00e-04 | Iter: 60 ← NEW BEST!
+Epoch [  2/600] (102.6s) | Train: 0.220971 | Val: 0.238508 | LR: 1.00e-04 | Iter: 120 ← NEW BEST!
+Epoch [  3/600] (102.7s) | Train: 0.217020 | Val: 0.208681 | LR: 1.00e-04 | Iter: 180 ← NEW BEST!
+Epoch [  4/600] (102.7s) | Train: 0.208041 | Val: 0.197278 | LR: 1.00e-04 | Iter: 240 ← NEW BEST!
+Epoch [  5/600] (102.6s) | Train: 0.203018 | Val: 0.195925 | LR: 1.00e-04 | Iter: 300 ← NEW BEST!
+Epoch [  6/600] (102.7s) | Train: 0.199057 | Val: 0.195968 | LR: 1.00e-04 | Iter: 360
+Epoch [  7/600] (102.6s) | Train: 0.193861 | Val: 0.194052 | LR: 1.00e-04 | Iter: 420 ← NEW BEST!
+Epoch [  8/600] (102.6s) | Train: 0.189557 | Val: 0.191015 | LR: 1.00e-04 | Iter: 480 ← NEW BEST!
+Epoch [  9/600] (103.1s) | Train: 0.181932 | Val: 0.192465 | LR: 1.00e-04 | Iter: 540
+Epoch [ 10/600] (102.7s) | Train: 0.179014 | Val: 0.200885 | LR: 1.00e-04 | Iter: 600
+Epoch [ 11/600] (102.6s) | Train: 0.173834 | Val: 0.229171 | LR: 1.00e-04 | Iter: 660
+Epoch [ 12/600] (107.6s) | Train: 0.177473 | Val: 0.194524 | LR: 1.00e-04 | Iter: 720
+Epoch [ 13/600] (102.6s) | Train: 0.168903 | Val: 0.184173 | LR: 1.00e-04 | Iter: 780 ← NEW BEST!
+Epoch [ 14/600] (102.5s) | Train: 0.160922 | Val: 0.189749 | LR: 1.00e-04 | Iter: 840
+Epoch [ 15/600] (102.6s) | Train: 0.162972 | Val: 0.187699 | LR: 1.00e-04 | Iter: 900
+Epoch [ 16/600] (102.7s) | Train: 0.158181 | Val: 0.171606 | LR: 1.00e-04 | Iter: 960 ← NEW BEST!
+Epoch [ 17/600] (102.6s) | Train: 0.147970 | Val: 0.197789 | LR: 1.00e-04 | Iter: 1020
+Epoch [ 18/600] (102.6s) | Train: 0.148827 | Val: 0.161349 | LR: 1.00e-04 | Iter: 1080 ← NEW BEST!
+Epoch [ 19/600] (102.6s) | Train: 0.145632 | Val: 0.174951 | LR: 1.00e-04 | Iter: 1140
+Epoch [ 20/600] (102.6s) | Train: 0.145635 | Val: 0.172655 | LR: 1.00e-04 | Iter: 1200
+Epoch [ 21/600] (102.6s) | Train: 0.133367 | Val: 0.159047 | LR: 1.00e-04 | Iter: 1260 ← NEW BEST!
+Epoch [ 22/600] (102.6s) | Train: 0.129410 | Val: 0.154203 | LR: 1.00e-04 | Iter: 1320 ← NEW BEST!
+Epoch [ 23/600] (102.6s) | Train: 0.130474 | Val: 0.164120 | LR: 1.00e-04 | Iter: 1380
+Epoch [ 24/600] (102.6s) | Train: 0.126097 | Val: 0.155345 | LR: 1.00e-04 | Iter: 1440
+Epoch [ 25/600] (102.6s) | Train: 0.123802 | Val: 0.151508 | LR: 1.00e-04 | Iter: 1500 ← NEW BEST!
+Epoch [ 26/600] (102.6s) | Train: 0.123791 | Val: 0.175020 | LR: 1.00e-04 | Iter: 1560
+Epoch [ 27/600] (102.8s) | Train: 0.120536 | Val: 0.151078 | LR: 1.00e-04 | Iter: 1620 ← NEW BEST!
+Epoch [ 28/600] (102.6s) | Train: 0.123123 | Val: 0.166387 | LR: 1.00e-04 | Iter: 1680
+Epoch [ 29/600] (102.6s) | Train: 0.119226 | Val: 0.151647 | LR: 1.00e-04 | Iter: 1740
+Epoch [ 30/600] (102.6s) | Train: 0.111761 | Val: 0.153302 | LR: 1.00e-04 | Iter: 1800
+Epoch [ 31/600] (102.6s) | Train: 0.113606 | Val: 0.164211 | LR: 1.00e-04 | Iter: 1860
+Epoch [ 32/600] (102.6s) | Train: 0.112920 | Val: 0.144100 | LR: 1.00e-04 | Iter: 1920 ← NEW BEST!
+Epoch [ 33/600] (102.7s) | Train: 0.109433 | Val: 0.143510 | LR: 1.00e-04 | Iter: 1980 ← NEW BEST!
+Epoch [ 34/600] (102.6s) | Train: 0.106780 | Val: 0.143290 | LR: 1.00e-04 | Iter: 2040 ← NEW BEST!
+Epoch [ 35/600] (102.6s) | Train: 0.111085 | Val: 0.156048 | LR: 1.00e-04 | Iter: 2100
+Epoch [ 36/600] (102.6s) | Train: 0.105002 | Val: 0.137188 | LR: 1.00e-04 | Iter: 2160 ← NEW BEST!
+Epoch [ 37/600] (102.6s) | Train: 0.099612 | Val: 0.136963 | LR: 1.00e-04 | Iter: 2220 ← NEW BEST!
+Epoch [ 38/600] (102.6s) | Train: 0.101156 | Val: 0.139479 | LR: 1.00e-04 | Iter: 2280
+Epoch [ 39/600] (102.6s) | Train: 0.105292 | Val: 0.143166 | LR: 1.00e-04 | Iter: 2340
+Epoch [ 40/600] (102.6s) | Train: 0.097641 | Val: 0.151109 | LR: 1.00e-04 | Iter: 2400
+Epoch [ 41/600] (103.5s) | Train: 0.100965 | Val: 0.135742 | LR: 1.00e-04 | Iter: 2460 ← NEW BEST!
+Epoch [ 42/600] (103.1s) | Train: 0.099064 | Val: 0.148911 | LR: 1.00e-04 | Iter: 2520
+Epoch [ 43/600] (102.6s) | Train: 0.098585 | Val: 0.151968 | LR: 1.00e-04 | Iter: 2580
+Epoch [ 44/600] (102.6s) | Train: 0.094535 | Val: 0.135643 | LR: 1.00e-04 | Iter: 2640 ← NEW BEST!
+Epoch [ 45/600] (102.8s) | Train: 0.094504 | Val: 0.136969 | LR: 1.00e-04 | Iter: 2700
+Epoch [ 46/600] (103.1s) | Train: 0.095024 | Val: 0.132288 | LR: 1.00e-04 | Iter: 2760 ← NEW BEST!
+Epoch [ 47/600] (102.7s) | Train: 0.095639 | Val: 0.141567 | LR: 1.00e-04 | Iter: 2820
+Epoch [ 48/600] (102.6s) | Train: 0.088589 | Val: 0.136124 | LR: 1.00e-04 | Iter: 2880
+Epoch [ 49/600] (102.6s) | Train: 0.093626 | Val: 0.132863 | LR: 1.00e-04 | Iter: 2940
+Epoch [ 50/600] (102.6s) | Train: 0.086453 | Val: 0.158105 | LR: 1.00e-04 | Iter: 3000
+Epoch [ 51/600] (102.6s) | Train: 0.084908 | Val: 0.140546 | LR: 1.00e-04 | Iter: 3060
+Epoch [ 52/600] (102.8s) | Train: 0.091242 | Val: 0.148698 | LR: 1.00e-04 | Iter: 3120
+Epoch [ 53/600] (102.6s) | Train: 0.090282 | Val: 0.136263 | LR: 1.00e-04 | Iter: 3180
+Epoch [ 54/600] (102.9s) | Train: 0.080263 | Val: 0.137525 | LR: 1.00e-04 | Iter: 3240
+Epoch [ 55/600] (102.6s) | Train: 0.083298 | Val: 0.128974 | LR: 1.00e-04 | Iter: 3300 ← NEW BEST!
+Epoch [ 56/600] (103.2s) | Train: 0.082408 | Val: 0.144518 | LR: 1.00e-04 | Iter: 3360
+Epoch [ 57/600] (102.6s) | Train: 0.080963 | Val: 0.129793 | LR: 1.00e-04 | Iter: 3420
+Epoch [ 58/600] (102.8s) | Train: 0.080823 | Val: 0.142560 | LR: 1.00e-04 | Iter: 3480
+Epoch [ 59/600] (102.6s) | Train: 0.079358 | Val: 0.143277 | LR: 1.00e-04 | Iter: 3540
+Epoch [ 60/600] (102.6s) | Train: 0.079657 | Val: 0.130657 | LR: 1.00e-04 | Iter: 3600
+Epoch [ 61/600] (103.1s) | Train: 0.077594 | Val: 0.125121 | LR: 1.00e-04 | Iter: 3660 ← NEW BEST!
+Epoch [ 62/600] (103.2s) | Train: 0.079539 | Val: 0.126196 | LR: 1.00e-04 | Iter: 3720
+Epoch [ 63/600] (102.7s) | Train: 0.074589 | Val: 0.133957 | LR: 1.00e-04 | Iter: 3780
+Epoch [ 64/600] (102.6s) | Train: 0.073155 | Val: 0.127574 | LR: 1.00e-04 | Iter: 3840
+Epoch [ 65/600] (102.6s) | Train: 0.077421 | Val: 0.127505 | LR: 1.00e-04 | Iter: 3900
+Epoch [ 66/600] (102.6s) | Train: 0.073444 | Val: 0.127272 | LR: 1.00e-04 | Iter: 3960
+Epoch [ 67/600] (107.1s) | Train: 0.071019 | Val: 0.123566 | LR: 1.00e-04 | Iter: 4020 ← NEW BEST!
+Epoch [ 68/600] (102.7s) | Train: 0.072635 | Val: 0.137074 | LR: 1.00e-04 | Iter: 4080
+Epoch [ 69/600] (102.7s) | Train: 0.073425 | Val: 0.135826 | LR: 1.00e-04 | Iter: 4140
+Epoch [ 70/600] (102.7s) | Train: 0.069608 | Val: 0.127880 | LR: 1.00e-04 | Iter: 4200
+Epoch [ 71/600] (102.9s) | Train: 0.069262 | Val: 0.126506 | LR: 1.00e-04 | Iter: 4260
+Epoch [ 72/600] (102.6s) | Train: 0.069610 | Val: 0.121444 | LR: 1.00e-04 | Iter: 4320 ← NEW BEST!
+Epoch [ 73/600] (102.6s) | Train: 0.066377 | Val: 0.124283 | LR: 1.00e-04 | Iter: 4380
+Epoch [ 74/600] (102.6s) | Train: 0.066262 | Val: 0.127843 | LR: 1.00e-04 | Iter: 4440
+Epoch [ 75/600] (102.6s) | Train: 0.073905 | Val: 0.130994 | LR: 1.00e-04 | Iter: 4500
+Epoch [ 76/600] (102.6s) | Train: 0.066777 | Val: 0.127729 | LR: 1.00e-04 | Iter: 4560
+Epoch [ 77/600] (102.6s) | Train: 0.064622 | Val: 0.123661 | LR: 1.00e-04 | Iter: 4620
+Epoch [ 78/600] (102.6s) | Train: 0.065217 | Val: 0.131145 | LR: 1.00e-04 | Iter: 4680
+Epoch [ 79/600] (108.0s) | Train: 0.061617 | Val: 0.125162 | LR: 1.00e-04 | Iter: 4740
+Epoch [ 80/600] (102.6s) | Train: 0.062689 | Val: 0.128576 | LR: 1.00e-04 | Iter: 4800
+Epoch [ 81/600] (102.6s) | Train: 0.065548 | Val: 0.130846 | LR: 1.00e-04 | Iter: 4860
+Epoch [ 82/600] (102.6s) | Train: 0.059334 | Val: 0.123258 | LR: 1.00e-04 | Iter: 4920
+Epoch [ 83/600] (102.6s) | Train: 0.060211 | Val: 0.126655 | LR: 1.00e-05 | Iter: 4980
+Epoch [ 84/600] (102.6s) | Train: 0.048832 | Val: 0.118939 | LR: 1.00e-05 | Iter: 5040 ← NEW BEST!
+Epoch [ 85/600] (102.7s) | Train: 0.043045 | Val: 0.119943 | LR: 1.00e-05 | Iter: 5100
+Epoch [ 86/600] (102.6s) | Train: 0.041450 | Val: 0.118641 | LR: 1.00e-05 | Iter: 5160 ← NEW BEST!
+Epoch [ 87/600] (102.7s) | Train: 0.040332 | Val: 0.118379 | LR: 1.00e-05 | Iter: 5220 ← NEW BEST!
+Epoch [ 88/600] (103.8s) | Train: 0.039042 | Val: 0.118188 | LR: 1.00e-05 | Iter: 5280 ← NEW BEST!
+Epoch [ 89/600] (103.3s) | Train: 0.038046 | Val: 0.119136 | LR: 1.00e-05 | Iter: 5340
+Epoch [ 90/600] (102.6s) | Train: 0.037145 | Val: 0.118387 | LR: 1.00e-05 | Iter: 5400
+Epoch [ 91/600] (102.6s) | Train: 0.036768 | Val: 0.118227 | LR: 1.00e-05 | Iter: 5460
+Epoch [ 92/600] (102.6s) | Train: 0.036360 | Val: 0.119288 | LR: 1.00e-05 | Iter: 5520
+Epoch [ 93/600] (102.7s) | Train: 0.035879 | Val: 0.118441 | LR: 1.00e-05 | Iter: 5580
+Epoch [ 94/600] (102.7s) | Train: 0.035379 | Val: 0.117938 | LR: 1.00e-05 | Iter: 5640 ← NEW BEST!
+Epoch [ 95/600] (102.8s) | Train: 0.034698 | Val: 0.118443 | LR: 1.00e-05 | Iter: 5700
+Epoch [ 96/600] (102.6s) | Train: 0.034080 | Val: 0.118449 | LR: 1.00e-05 | Iter: 5760
+Epoch [ 97/600] (102.6s) | Train: 0.033755 | Val: 0.119291 | LR: 1.00e-05 | Iter: 5820
+Epoch [ 98/600] (102.6s) | Train: 0.032738 | Val: 0.118822 | LR: 1.00e-05 | Iter: 5880
+Epoch [ 99/600] (102.6s) | Train: 0.032603 | Val: 0.118427 | LR: 1.00e-05 | Iter: 5940
+Epoch [100/600] (102.6s) | Train: 0.032482 | Val: 0.117837 | LR: 1.00e-05 | Iter: 6000 ← NEW BEST!
+Epoch [101/600] (102.6s) | Train: 0.031633 | Val: 0.118010 | LR: 1.00e-05 | Iter: 6060
+Epoch [102/600] (102.6s) | Train: 0.030946 | Val: 0.118412 | LR: 1.00e-05 | Iter: 6120
+Epoch [103/600] (102.6s) | Train: 0.031068 | Val: 0.117547 | LR: 1.00e-05 | Iter: 6180 ← NEW BEST!
+Epoch [104/600] (102.6s) | Train: 0.030833 | Val: 0.119059 | LR: 1.00e-05 | Iter: 6240
+Epoch [105/600] (102.6s) | Train: 0.030058 | Val: 0.118406 | LR: 1.00e-05 | Iter: 6300
+Epoch [106/600] (102.6s) | Train: 0.029781 | Val: 0.118158 | LR: 1.00e-05 | Iter: 6360
+Epoch [107/600] (105.0s) | Train: 0.029755 | Val: 0.118712 | LR: 1.00e-05 | Iter: 6420
+Epoch [108/600] (102.6s) | Train: 0.029879 | Val: 0.118737 | LR: 1.00e-05 | Iter: 6480
+Epoch [109/600] (102.6s) | Train: 0.029126 | Val: 0.118099 | LR: 1.00e-05 | Iter: 6540
