@@ -13,7 +13,7 @@ _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Eng
 This repository provides a standardized benchmarking framework for evaluating deep learning models on single-shot fringe projection profilometry (FPP) depth estimation. All benchmark data were generated using [VIRTUS-FPP], the first photorealistic virtual sensor modeling pipeline for fringe projection profilometry. FPP is a 3D imaging technique that reconstructs depth maps from projected fringe patterns, enabling high-precision 3D reconstruction for industrial inspection, quality control, and computer vision applications.
 
 <p align="center">
-  <img src="images/virtus2.png" width="90%" /><br/>
+  <img src="images/virtus.png" width="90%" /><br/>
   <sub><b>Architectural Overview of VIRTUS-FPP</b></sub>
 </p>
 
