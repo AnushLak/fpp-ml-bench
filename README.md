@@ -203,7 +203,7 @@ The `alpha` parameter controls the weight between masked and global components i
 - **α = 0.5**: Equal weight
 - **α = 0.0**: Pure global loss (treats all pixels equally)
 
-**Recommendation**: Start with `α = 0.9` for hybrid losses.
+**Recommendation**: Start with `α = 0.7` for hybrid losses.
 
 ## Model Architectures
 
@@ -231,19 +231,18 @@ The `alpha` parameter controls the weight between masked and global components i
 ## Training Tips
 
 1. **Start with default settings**: They work well for most cases
-2. **Use `hybrid_l1` loss** with `alpha=0.9` as baseline
+2. **Use `hybrid_l1` loss** with `alpha=0.7` as baseline
 3. **Monitor validation loss**: Training should converge within 100-200 epochs
 4. **Adjust learning rate**: If loss plateaus early, try reducing initial LR
 5. **Try different normalizations**: `_individual_normalized` usually works best
 6. **Use larger batch size** if GPU memory allows (faster training)
-7. **Enable dropout** for UNet (0.5) to prevent overfitting
 
 ## Optimization
 
 All models use:
-- **Optimizer**: RMSprop with weight decay 1e-5
+- **Optimizer**: RMSprop with weight decay 1e-5 (you can also use ADAM)
+- **Dropout Rate**: Dropout rate of 0.0 for initial learning
 - **Learning Rate Scheduler**: ReduceLROnPlateau (factor=0.1, patience=10)
-- **Initialization**: He/Kaiming initialization for convolutional layers
 - **Random Seed**: 42 (for reproducibility)
 
 ## Troubleshooting
@@ -257,7 +256,7 @@ All models use:
 - Check data normalization matches dataset type
 - Verify .mat files contain valid depth data
 - Try different loss function (e.g., `masked_l1`)
-- Reduce learning rate: `--lr 5e-5`
+- Reduce learning rate: `--lr 1e-6`
 
 **Import errors:**
 - Ensure you're running from model directory (cd UNet/Hformer/ResUNet)
@@ -266,14 +265,21 @@ All models use:
 
 ## Citation
 
-If you use this code in your research, please cite:
+If you use this code in your research, please cite the following papers:
 
 ```bibtex
-@article{fpp_ml_benchmark2024,
-  title={Deep Learning Benchmarking for Single-Shot Fringe Projection Profilometry},
-  author={Your Name},
-  journal={arXiv preprint},
-  year={2024}
+1) @article{lakshman2026comprehensive,
+  title={Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data},
+  author={Lakshman S, Anush and Haroon, Adam and Li, Beiwen},
+  journal={arXiv preprint arXiv:2601.08900},
+  year={2026}
+}
+
+2) @article{haroon2025virtus,
+  title={VIRTUS-FPP: virtual sensor modeling for fringe projection profilometry in NVIDIA Isaac Sim},
+  author={Haroon, Adam and Lakshman, Anush and Balasubramaniam, Badrinath and Li, Beiwen},
+  journal={arXiv preprint arXiv:2509.22685},
+  year={2025}
 }
 ```
 
@@ -284,7 +290,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - UNet implementation based on [Ronneberger et al., 2015]
-- Hformer architecture inspired by [NVIDIA HRNet] and transformer architectures
+- Hformer architecture inspired by [Zhu et al., 2022] and transformer architectures
 - ResUNet design follows residual learning principles from [He et al., 2016]
 
 ## Contributing
@@ -293,7 +299,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## Contact
 
-For questions or issues, please open an issue on GitHub or contact [your email].
+For questions or issues, please open an issue on GitHub or contact [anushlak@iastate.edu] OR [aharoon@iastate.edu].
 
 ---
 
