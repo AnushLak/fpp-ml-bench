@@ -10,26 +10,27 @@ _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Eng
 
 <p align="center">
   <img src="images/virtus.png" width="90%" />
+  <sub><b>Archiectural Overview of VIRTUS-FPP</b></sub>
 </p>
 
 <table align="center">
   <tr>
     <!-- <td align="center">
-      <img src="images/unet_predictions.gif" width="250"/><br/>
+      <img src="images/unet_predictions.gif" width="500"/><br/>
       <sub><b>UNet</b></sub>
     </td> -->
     <td align="center">
-      <img src="images/hformer_predictions.gif" width="250"/><br/>
+      <img src="images/hformer_predictions.gif" width="500"/><br/>
       <sub><b>Hformer</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="images/resunet_predictions.gif" width="250"/><br/>
+      <img src="images/resunet_predictions.gif" width="500"/><br/>
       <sub><b>ResUNet</b></sub>
     </td>
     <td align="center">
-      <img src="images/pix2pixhd_predictions.gif" width="250"/><br/>
+      <img src="images/pix2pixhd_predictions.gif" width="500"/><br/>
       <sub><b>pix2pixHD</b></sub>
     </td>
   </tr>
