@@ -9,15 +9,32 @@
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
 <p align="center">
-  <img src="images/virtus.pdf" width="90%" />
+  <img src="images/virtus.png" width="90%" />
 </p>
 
-<p align="center">
-  <!-- <img src="assets/unet.gif" width="24%" /> -->
-  <img src="images/hformer_predictions.gif" width="24%" />
-  <img src="images/resunet_predictions.gif" width="24%" />
-  <img src="images/pix2pixhd_predictions.gif" width="24%" />
-</p>
+<table align="center">
+  <tr>
+    <!-- <td align="center">
+      <img src="images/unet_predictions.gif" width="250"/><br/>
+      <sub><b>UNet</b></sub>
+    </td> -->
+    <td align="center">
+      <img src="images/hformer_predictions.gif" width="250"/><br/>
+      <sub><b>Hformer</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="images/resunet_predictions.gif" width="250"/><br/>
+      <sub><b>ResUNet</b></sub>
+    </td>
+    <td align="center">
+      <img src="images/pix2pixhd_predictions.gif" width="250"/><br/>
+      <sub><b>pix2pixHD</b></sub>
+    </td>
+  </tr>
+</table>
+
 
 ## Overview
 
