@@ -95,7 +95,7 @@ class FringeFPPDatasetPNG(Dataset):
 # ============================================================================
 class Config:
     # Data paths
-    DATA_ROOT = Path("/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/fpp_training_data")
+    DATA_ROOT = Path("/work/arpawar/anushlak/SPIE-PW/training_data_depth_individual_normalized")
     VAL_FRINGE = DATA_ROOT / "val" / "fringe"
     VAL_DEPTH = DATA_ROOT / "val" / "depth"
     TEST_FRINGE = DATA_ROOT / "test" / "fringe"

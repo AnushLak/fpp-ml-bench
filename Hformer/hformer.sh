@@ -13,8 +13,8 @@
 # -----------------------------
 # Activate your conda env
 # -----------------------------
-source ~/.bashrc
-conda activate fpp-ml-bench
+module load micromamba
+micromamba activate "/work/arpawar/anushlak/temp/micromamba/envs/spiepw"
 
 echo "Job started at: $(date)"
 echo "Running on host: $(hostname)"
@@ -29,7 +29,7 @@ export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # -----------------------------
 # Go to your repo
 # -----------------------------
-cd "/work/flemingc/aharoon/workspace/fpp/fpp_synthetic_dataset/FPP-ML-Benchmarking/Hformer" || exit 1
+cd "/work/arpawar/anushlak/SPIE-PW/FPP-ML-Benchmarking/Hformer" || exit 1
 
 # -----------------------------
 # Run training

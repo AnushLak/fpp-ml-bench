@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .hformer_parts import *
-from .hrnet_backbone import HRNetBackbone
+from hformer_parts import *
+from hrnet_backbone import HRNetBackbone
 
 class Hformer(nn.Module):
     """

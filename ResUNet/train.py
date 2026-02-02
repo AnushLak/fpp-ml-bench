@@ -1,351 +1,312 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from resnet import ResNet
+"""
+ResUNet Training Script for Fringe Projection Profilometry
+"""
+
 import os
-import json
-from datetime import datetime
-from PIL import Image
+import sys
+import time
+import csv
+import argparse
+from pathlib import Path
+
 import numpy as np
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
-# ============================================================================
-# DATASET CLASS
-# ============================================================================
-class FringeDataset(Dataset):
-    """
-    Dataset for fringe images - one fringe image per object
-    """
-    def __init__(self, fringe_dir, depth_dir):
-        """
-        Args:
-            fringe_dir: Directory containing fringe images
-            depth_dir: Directory containing corresponding depth maps
-        """
-        self.fringe_dir = fringe_dir
-        self.depth_dir = depth_dir
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+from dataset import FringeFPPDataset
+from losses import RMSELoss, MaskedRMSELoss, HybridRMSELoss, L1Loss, MaskedL1Loss, HybridL1Loss
+from resunet import ResUNet
 
-        # Get sorted list of files
-        self.fringe_files = sorted([f for f in os.listdir(fringe_dir)
-                                    if f.endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))])
-        self.depth_files = sorted([f for f in os.listdir(depth_dir)
-                                   if f.endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))])
 
-        assert len(self.fringe_files) == len(self.depth_files), \
-            f"Mismatch: {len(self.fringe_files)} fringe images vs {len(self.depth_files)} depth maps"
+def get_loss_function(loss_name, alpha=0.9):
+    """Get loss function by name"""
+    loss_map = {
+        'rmse': RMSELoss(),
+        'masked_rmse': MaskedRMSELoss(),
+        'hybrid_rmse': HybridRMSELoss(alpha=alpha),
+        'l1': L1Loss(),
+        'masked_l1': MaskedL1Loss(),
+        'hybrid_l1': HybridL1Loss(alpha=alpha),
+    }
+    if loss_name not in loss_map:
+        raise ValueError(f"Unknown loss: {loss_name}. Choose from {list(loss_map.keys())}")
+    return loss_map[loss_name]
 
-        print(f"Loaded {len(self.fringe_files)} samples from {fringe_dir}")
 
-    def __len__(self):
-        return len(self.fringe_files)
-
-    def __getitem__(self, idx):
-        # Load fringe image (grayscale)
-        fringe_path = os.path.join(self.fringe_dir, self.fringe_files[idx])
-        fringe = Image.open(fringe_path).convert('L')
-        fringe = np.array(fringe, dtype=np.float32) / 255.0  # Normalize to [0, 1]
-        fringe = torch.from_numpy(fringe).unsqueeze(0)  # Add channel dimension
-
-        # Load depth map (grayscale)
-        depth_path = os.path.join(self.depth_dir, self.depth_files[idx])
-        depth = Image.open(depth_path).convert('L')
-        depth = np.array(depth, dtype=np.float32) / 255.0
-        depth = torch.from_numpy(depth).unsqueeze(0)
-
-        return fringe, depth
-
-# ============================================================================
-# RMSE LOSS FUNCTION
-# ============================================================================
-class RMSELoss(nn.Module):
-    """Root Mean Squared Error Loss"""
-    def __init__(self, eps=1e-8):
-        super().__init__()
-        self.mse = nn.MSELoss()
-        self.eps = eps
-
-    def forward(self, pred, target):
-        return torch.sqrt(self.mse(pred, target) + self.eps)
-
-# ============================================================================
-# TRAINING CONFIGURATION
-# ============================================================================
-class Config:
-    # Data paths
-    TRAIN_FRINGE_DIR = "data/train/fringe"
-    TRAIN_DEPTH_DIR = "data/train/depth"
-    VAL_FRINGE_DIR = "data/val/fringe"
-    VAL_DEPTH_DIR = "data/val/depth"
-
-    # Model parameters
-    IN_CHANNELS = 1
-    OUT_CHANNELS = 1
-    DROPOUT_RATE = 0.5
-
-    # Training hyperparameters
-    BATCH_SIZE = 4
-    NUM_EPOCHS = 600
-    LEARNING_RATE = 1e-4
-
-    # RMSProp parameters
-    ALPHA = 0.99
-    MOMENTUM = 0.0
-    WEIGHT_DECAY = 1e-8
-
-    # Device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Checkpoint and logging
-    CHECKPOINT_DIR = "checkpoints"
-    LOG_FILE = "training_log.json"
-    SAVE_EVERY = 5
-
-# ============================================================================
-# TRAINING FUNCTIONS
-# ============================================================================
-def train_one_epoch(model, dataloader, optimizer, criterion, device):
+def train_epoch(model, dataloader, criterion, optimizer, device, start_iteration=0):
     """Train for one epoch"""
-    model.train()  # Enable dropout and batch norm training mode
+    model.train()
     running_loss = 0.0
-    batch_losses = []
+    iteration = start_iteration
 
-    loop = tqdm(dataloader, desc="Training", leave=False)
-    for fringe, depth_gt in loop:
+    pbar = tqdm(dataloader, desc="Training", leave=False)
+    for fringe, depth, _ in pbar:
         fringe = fringe.to(device)
-        depth_gt = depth_gt.to(device)
+        depth = depth.to(device)
 
-        # Zero gradients
         optimizer.zero_grad()
+        pred = model(fringe)
+        loss = criterion(pred, depth)
 
-        # Forward pass
-        depth_pred = model(fringe)
-        loss = criterion(depth_pred, depth_gt)
-
-        # Backward pass
         loss.backward()
         optimizer.step()
 
-        # Track loss
-        batch_loss = loss.item()
-        running_loss += batch_loss
-        batch_losses.append(batch_loss)
+        running_loss += loss.item()
+        iteration += 1
+        pbar.set_postfix({"loss": f"{loss.item():.6f}"})
 
-        loop.set_postfix(loss=batch_loss)
+    return running_loss / len(dataloader), iteration
 
-    epoch_loss = running_loss / len(dataloader)
-    return epoch_loss, batch_losses
 
 def validate(model, dataloader, criterion, device):
-    """Validation loop"""
-    model.eval()  # Disable dropout and set batch norm to eval mode
+    """Validate the model"""
+    model.eval()
     running_loss = 0.0
-    batch_losses = []
 
     with torch.no_grad():
-        loop = tqdm(dataloader, desc="Validation", leave=False)
-        for fringe, depth_gt in loop:
+        pbar = tqdm(dataloader, desc="Validation", leave=False)
+        for fringe, depth, _ in pbar:
             fringe = fringe.to(device)
-            depth_gt = depth_gt.to(device)
+            depth = depth.to(device)
 
-            # Forward pass
-            depth_pred = model(fringe)
-            loss = criterion(depth_pred, depth_gt)
+            pred = model(fringe)
+            loss = criterion(pred, depth)
 
-            # Track loss
-            batch_loss = loss.item()
-            running_loss += batch_loss
-            batch_losses.append(batch_loss)
+            running_loss += loss.item()
+            pbar.set_postfix({"loss": f"{loss.item():.6f}"})
 
-            loop.set_postfix(loss=batch_loss)
+    return running_loss / len(dataloader)
 
-    epoch_loss = running_loss / len(dataloader)
-    return epoch_loss, batch_losses
 
-def save_checkpoint(model, optimizer, epoch, loss, filepath):
+def save_checkpoint(model, optimizer, scheduler, epoch, loss, iteration, path):
     """Save model checkpoint"""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict(),
         'loss': loss,
+        'iteration': iteration,
     }
-    torch.save(checkpoint, filepath)
-    print(f"Checkpoint saved: {filepath}")
 
-def log_to_json(log_file, log_data):
-    """Append training log to JSON file"""
-    # Load existing log if it exists
-    if os.path.exists(log_file):
-        with open(log_file, 'r') as f:
-            logs = json.load(f)
-    else:
-        logs = []
+    torch.save(checkpoint, path)
 
-    # Append new log entry
-    logs.append(log_data)
 
-    # Save to file
-    with open(log_file, 'w') as f:
-        json.dump(logs, f, indent=4)
+def main(args):
+    # Set seed
+    torch.manual_seed(42)
+    np.random.seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
 
-# ============================================================================
-# MAIN TRAINING LOOP
-# ============================================================================
-def main():
-    config = Config()
+    # Device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    print("=" * 70)
+    print("ResUNet Training - Fringe Projection Profilometry")
+    print("=" * 70)
+    print(f"Device: {device}")
+    print(f"Dataset type: {args.dataset_type}")
+    print(f"Loss function: {args.loss}")
+    if args.loss in ['hybrid_rmse', 'hybrid_l1']:
+        print(f"Alpha: {args.alpha}")
+    print(f"Batch size: {args.batch_size}")
+    print(f"Learning rate: {args.lr}")
+    print(f"Dropout rate: {args.dropout}")
+    print("=" * 70)
+    print()
+
+    # Data paths
+    data_root = Path(f"/work/arpawar/anushlak/SPIE-PW/training_data_depth{args.dataset_type}")
+    train_fringe = data_root / "train" / "fringe"
+    train_depth = data_root / "train" / "depth"
+    val_fringe = data_root / "val" / "fringe"
+    val_depth = data_root / "val" / "depth"
 
     # Create datasets
-    print("=" * 70)
-    print("ResNet Training - Fringe Projection Profilometry")
-    print("=" * 70)
-    print("\nLoading datasets...")
-
-    train_dataset = FringeDataset(
-        config.TRAIN_FRINGE_DIR,
-        config.TRAIN_DEPTH_DIR
-    )
-    val_dataset = FringeDataset(
-        config.VAL_FRINGE_DIR,
-        config.VAL_DEPTH_DIR
-    )
-
-    print(f"\nTraining samples: {len(train_dataset)}")
-    print(f"Validation samples: {len(val_dataset)}")
+    try:
+        train_dataset = FringeFPPDataset(train_fringe, train_depth, args.dataset_type)
+        val_dataset = FringeFPPDataset(val_fringe, val_depth, args.dataset_type)
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return
 
     # Create dataloaders
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config.BATCH_SIZE,
+        batch_size=args.batch_size,
         shuffle=True,
-        num_workers=4,
-        pin_memory=True if config.DEVICE == "cuda" else False
+        num_workers=args.num_workers,
+        pin_memory=(device == "cuda")
     )
+
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config.BATCH_SIZE,
+        batch_size=args.batch_size,
         shuffle=False,
-        num_workers=4,
-        pin_memory=True if config.DEVICE == "cuda" else False
+        num_workers=args.num_workers,
+        pin_memory=(device == "cuda")
     )
 
-    # Initialize model
-    print("\n" + "=" * 70)
-    print("Initializing ResNet model...")
-    print("=" * 70)
+    # Create model
+    print("Initializing ResUNet model...")
+    model = ResUNet(
+        in_channels=1,
+        out_channels=1,
+        dropout_rate=args.dropout
+    ).to(device)
 
-    model = ResNet(
-        in_channels=config.IN_CHANNELS,
-        out_channels=config.OUT_CHANNELS,
-        dropout_rate=config.DROPOUT_RATE
-    ).to(config.DEVICE)
-
-    # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total parameters: {total_params:,}")
-    print(f"Trainable parameters: {trainable_params:,}")
+    print(f"Model parameters: {total_params:,}\n")
 
-    # RMSProp optimizer
-    optimizer = optim.RMSprop(
-        model.parameters(),
-        lr=config.LEARNING_RATE,
-        alpha=config.ALPHA,
-        momentum=config.MOMENTUM,
-        weight_decay=config.WEIGHT_DECAY
-    )
+    # Loss function
+    criterion = get_loss_function(args.loss, args.alpha)
+
+    # Optimizer
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=1e-5)
 
     # Learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    scheduler = ReduceLROnPlateau(
         optimizer,
         mode='min',
-        factor=0.5,
-        patience=5,
-        verbose=True
+        factor=0.1,
+        patience=10,
+        min_lr=1e-6,
     )
 
-    # RMSE Loss
-    criterion = RMSELoss()
+    # Initialize CSV logging
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = log_dir / "training_log.csv"
 
-    # Training configuration summary
-    print(f"\nDevice: {config.DEVICE}")
-    print(f"Batch size: {config.BATCH_SIZE}")
-    print(f"Learning rate: {config.LEARNING_RATE}")
-    print(f"Dropout rate: {config.DROPOUT_RATE}")
-    print(f"Optimizer: RMSProp (alpha={config.ALPHA}, momentum={config.MOMENTUM})")
-    print(f"Loss function: RMSE")
+    if not csv_path.exists():
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['epoch', 'train_loss', 'val_loss', 'time_seconds', 'learning_rate', 'iteration'])
+        print(f"Created CSV log: {csv_path}\n")
+    else:
+        print(f"Appending to existing CSV log: {csv_path}\n")
 
-    # Initialize training log
-    training_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\nTraining started at: {training_start_time}")
+    # Load checkpoint if resuming
+    start_epoch = 0
+    best_val_loss = float('inf')
+    iteration = 0
+
+    if args.resume and Path(args.resume).exists():
+        print(f"Loading checkpoint: {args.resume}")
+        checkpoint = torch.load(args.resume, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_val_loss = checkpoint['loss']
+        iteration = checkpoint.get('iteration', 0)
+        print(f"Resuming from epoch {start_epoch}, iteration {iteration}\n")
 
     # Training loop
-    print("\n" + "=" * 70)
-    print("Starting training...")
-    print("=" * 70)
+    checkpoint_dir = Path("checkpoints")
+    print("Starting training...\n")
 
-    best_val_loss = float('inf')
-
-    for epoch in range(config.NUM_EPOCHS):
-        print(f"\nEpoch {epoch+1}/{config.NUM_EPOCHS}")
-        print("-" * 70)
+    for epoch in range(start_epoch, args.epochs):
+        epoch_start = time.time()
 
         # Train
-        train_loss, train_batch_losses = train_one_epoch(
-            model, train_loader, optimizer, criterion, config.DEVICE
+        train_loss, iteration = train_epoch(
+            model, train_loader, criterion, optimizer, device, iteration
         )
-        print(f"Train RMSE: {train_loss:.6f}")
 
         # Validate
-        val_loss, val_batch_losses = validate(
-            model, val_loader, criterion, config.DEVICE
-        )
-        print(f"Val RMSE:   {val_loss:.6f}")
+        val_loss = validate(model, val_loader, criterion, device)
 
-        # Learning rate scheduling
-        current_lr = optimizer.param_groups[0]['lr']
+        # Update learning rate
         scheduler.step(val_loss)
-        new_lr = optimizer.param_groups[0]['lr']
+        current_lr = optimizer.param_groups[0]['lr']
 
-        if new_lr != current_lr:
-            print(f"Learning rate changed: {current_lr:.2e} -> {new_lr:.2e}")
+        epoch_time = time.time() - epoch_start
 
-        # Log to JSON
-        log_entry = {
-            "epoch": epoch + 1,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "train_loss": train_loss,
-            "val_loss": val_loss,
-            "learning_rate": new_lr,
-            "train_batch_losses": train_batch_losses,
-            "val_batch_losses": val_batch_losses
-        }
-        log_to_json(config.LOG_FILE, log_entry)
+        # Log to CSV
+        with open(csv_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                epoch + 1,
+                float(train_loss),
+                float(val_loss),
+                int(round(epoch_time)),
+                float(current_lr),
+                int(iteration)
+            ])
+
+        # Print epoch summary
+        print(f"Epoch [{epoch+1:3d}/{args.epochs}] "
+              f"({epoch_time:5.1f}s) | "
+              f"Train: {train_loss:.6f} | "
+              f"Val: {val_loss:.6f} | "
+              f"LR: {current_lr:.2e} | "
+              f"Iter: {iteration}", end="")
 
         # Save best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             save_checkpoint(
-                model, optimizer, epoch, val_loss,
-                f"{config.CHECKPOINT_DIR}/best_model.pth"
+                model, optimizer, scheduler, epoch, val_loss, iteration,
+                checkpoint_dir / "best_model.pth"
             )
-            print(f"★ New best model! Val RMSE: {best_val_loss:.6f}")
+            print(" ← NEW BEST!")
+        else:
+            print()
 
-        # Periodic checkpoint
-        if (epoch + 1) % config.SAVE_EVERY == 0:
+        # Save periodic checkpoint
+        if (epoch + 1) % args.save_every == 0:
             save_checkpoint(
-                model, optimizer, epoch, val_loss,
-                f"{config.CHECKPOINT_DIR}/checkpoint_epoch_{epoch+1}.pth"
+                model, optimizer, scheduler, epoch, val_loss, iteration,
+                checkpoint_dir / f"checkpoint_epoch_{epoch+1:04d}.pth"
             )
 
-    # Training complete
+        # Early stopping if LR reaches minimum
+        if current_lr <= 1e-6:
+            print(f"\n⚠ Learning rate reached minimum. Stopping.")
+            break
+
     print("\n" + "=" * 70)
     print("Training completed!")
+    print(f"Best validation loss: {best_val_loss:.6f}")
+    print(f"Best model saved: {checkpoint_dir / 'best_model.pth'}")
+    print(f"Training log saved: {csv_path}")
     print("=" * 70)
-    print(f"Best validation RMSE: {best_val_loss:.6f}")
-    print(f"Training log saved to: {config.LOG_FILE}")
-    print(f"Best model saved to: {config.CHECKPOINT_DIR}/best_model.pth")
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train ResUNet for FPP")
+    parser.add_argument("--dataset_type", type=str, default="_individual_normalized",
+                        choices=["_raw", "_global_normalized", "_individual_normalized"],
+                        help="Dataset normalization type")
+    parser.add_argument("--loss", type=str, default="hybrid_l1",
+                        choices=["rmse", "masked_rmse", "hybrid_rmse", "l1", "masked_l1", "hybrid_l1"],
+                        help="Loss function to use")
+    parser.add_argument("--alpha", type=float, default=0.9,
+                        help="Alpha parameter for hybrid losses (0-1)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Path to checkpoint to resume training")
+    parser.add_argument("--batch_size", type=int, default=4,
+                        help="Batch size for training")
+    parser.add_argument("--epochs", type=int, default=600,
+                        help="Number of epochs to train")
+    parser.add_argument("--lr", type=float, default=1e-4,
+                        help="Learning rate")
+    parser.add_argument("--dropout", type=float, default=0.0,
+                        help="Dropout rate")
+    parser.add_argument("--num_workers", type=int, default=4,
+                        help="Number of data loading workers")
+    parser.add_argument("--save_every", type=int, default=10,
+                        help="Save checkpoint every N epochs")
+
+    args = parser.parse_args()
+
+    main(args)
