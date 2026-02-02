@@ -12,12 +12,12 @@ _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Eng
 
 This repository provides a standardized benchmarking framework for evaluating deep learning models on single-shot fringe projection profilometry (FPP) depth estimation. FPP is a 3D imaging technique that reconstructs depth maps from projected fringe patterns, enabling high-precision 3D reconstruction for industrial inspection, quality control, and computer vision applications.
 
-The framework implements three state-of-the-art architectures with unified training pipelines, loss functions, and dataset handling:
+The framework implements four state-of-the-art architectures with unified training pipelines, loss functions, and dataset handling:
 
-- **UNet**: Classic encoder-decoder architecture with skip connections
-- **Hformer**: Hybrid CNN-Transformer model combining HRNet backbone with transformer encoder-decoder
-- **ResUNet**: Residual U-Net architecture with residual blocks for improved gradient flow
-- **pix2pixHD**: Conditional GAN with U-Net generator and PatchGAN discriminator
+- **UNet**: Classic encoder-decoder architecture with skip connections, ~31M parameters 
+- **Hformer**: Hybrid CNN-Transformer model combining HRNet backbone with transformer encoder-decoder, ~5M parameters
+- **ResUNet**: Residual U-Net architecture with residual blocks for improved gradient flow, ~89M parameters
+- **pix2pixHD**: Conditional GAN with U-Net generator and PatchGAN discriminator, ~188M parameters
 
 ## Features
 
@@ -162,9 +162,9 @@ python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0
 |----------|------|---------|-------------|
 | `--dataset_type` | str | `_individual_normalized` | Dataset normalization: `_raw`, `_global_normalized`, `_individual_normalized` |
 | `--loss` | str | `hybrid_l1` | Loss function: `rmse`, `masked_rmse`, `hybrid_rmse`, `l1`, `masked_l1`, `hybrid_l1` |
-| `--alpha` | float | 0.9 | Alpha parameter for hybrid losses (0-1), weight for masked component |
-| `--batch_size` | int | 4 (UNet), 1 (Hformer), 4 (ResUNet) | Training batch size |
-| `--epochs` | int | 1000 (UNet/Hformer), 600 (ResUNet) | Number of training epochs |
+| `--alpha` | float | 0.7 | Alpha parameter for hybrid losses (0-1), weight for masked component |
+| `--batch_size` | int | 4 (UNet/ResUNet), 1 (Hformer/pix2pixHD) | Training batch size |
+| `--epochs` | int | 1000 (UNet/Hformer/ResUNet), 200 (pix2pixHD) | Number of training epochs |
 | `--lr` | float | 1e-4 | Initial learning rate |
 | `--dropout` | float | 0.0 | Dropout rate |
 | `--resume` | str | None | Path to checkpoint to resume training |
@@ -259,29 +259,6 @@ The `alpha` parameter controls the weight between masked and global components i
 
 **Recommendation**: Start with `α = 0.7` for hybrid losses.
 
-## Model Architectures
-
-### UNet
-- **Parameters**: ~31M
-- **Input**: 960×960 grayscale fringe image
-- **Output**: 960×960 depth map
-- **Architecture**: Classic U-Net with InstanceNorm and skip connections
-- **Best for**: Baseline performance, fast training
-
-### Hformer
-- **Parameters**: ~5M
-- **Input**: 960×960 grayscale fringe image
-- **Output**: 960×960 depth map
-- **Architecture**: HRNet backbone + Transformer encoder-decoder
-- **Best for**: High-accuracy applications, complex fringe patterns
-
-### ResUNet
-- **Parameters**: ~89M
-- **Input**: 960×960 grayscale fringe image
-- **Output**: 960×960 depth map
-- **Architecture**: U-Net with residual blocks and batch normalization
-- **Best for**: Balance between accuracy and efficiency
-
 ## Training Tips
 
 1. **Start with default settings**: They work well for most cases
@@ -346,6 +323,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - UNet implementation based on [Ronneberger et al., 2015]
 - Hformer architecture inspired by [Zhu et al., 2022] and transformer architectures
 - ResUNet design follows residual learning principles from [He et al., 2016]
+- pix2pixHD from [Wang et al., 2018]
 
 ## Contributing
 
