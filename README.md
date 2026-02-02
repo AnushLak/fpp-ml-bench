@@ -215,7 +215,7 @@ The `alpha` parameter controls the weight between masked and global components i
 - **Best for**: Baseline performance, fast training
 
 ### Hformer
-- **Parameters**: ~90M
+- **Parameters**: ~5M
 - **Input**: 960×960 grayscale fringe image
 - **Output**: 960×960 depth map
 - **Architecture**: HRNet backbone + Transformer encoder-decoder
