@@ -299,14 +299,14 @@ All models use:
 If you use this code in your research, please cite the following papers:
 
 ```bibtex
-1) @article{lakshman2026comprehensive,
+@article{lakshman2026comprehensive,
   title={Comprehensive Machine Learning Benchmarking for Fringe Projection Profilometry with Photorealistic Synthetic Data},
   author={Lakshman S, Anush and Haroon, Adam and Li, Beiwen},
   journal={arXiv preprint arXiv:2601.08900},
   year={2026}
 }
 
-2) @article{haroon2025virtus,
+@article{haroon2025virtus,
   title={VIRTUS-FPP: virtual sensor modeling for fringe projection profilometry in NVIDIA Isaac Sim},
   author={Haroon, Adam and Lakshman, Anush and Balasubramaniam, Badrinath and Li, Beiwen},
   journal={arXiv preprint arXiv:2509.22685},
