@@ -4,7 +4,8 @@
 [![SPIE Photonics West](https://img.shields.io/badge/SPIE%20Photonics%20West-Presentation-blue)](https://spie.org/photonics-west/presentation/Comprehensive-machine-learning-benchmarking-for-fringe-projection-profilometry-with-photorealistic/13904-1)
 [![Python](https://img.shields.io/badge/Python-100.0%25-blue)](https://github.com/AnushLak/FPP-ML-Benchmarking/tree/unetfixed)
 
-**Repository: fpp-ml-bench**
+**Repository: FPP-ML-Bench**
+
 **Dataset: Our dataset is publicly available on HuggingFace https://huggingface.co/datasets/aharoon/fpp-ml-bench.**
 
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
