@@ -457,66 +457,6 @@ def main():
         indices = [args.image_idx]
         print(f"Processing single image at index {args.image_idx}...\n")
 
-    # # Process images
-    # all_metrics = []
-
-    # with torch.no_grad():
-    #     for idx in tqdm(indices, desc="Visualizing"):
-    #         # Load sample
-    #         fringe, gt_depth, sample_name = dataset[idx]
-
-    #         # Prepare input for pix2pixHD (convert [0,1] to [-1,1])
-    #         fringe_input = fringe * 2.0 - 1.0
-    #         fringe_input = fringe_input.unsqueeze(0).to(device)
-    #         inst = torch.zeros_like(fringe_input)
-
-    #         # Wrap in Variable for pix2pixHD
-    #         fringe_var = Variable(fringe_input)
-    #         inst_var = Variable(inst)
-
-    #         # Run inference
-    #         if hasattr(model, 'module'):
-    #             pred_depth = model.module.inference(fringe_var, inst_var)
-    #         else:
-    #             pred_depth = model.inference(fringe_var, inst_var)
-
-    #         # Convert output from [-1,1] back to [0,1]
-    #         pred_depth = (pred_depth + 1.0) / 2.0
-
-    #         # Visualize and save
-    #         save_path = save_dir / f"{sample_name}_prediction.png"
-    #         visualize_prediction(
-    #             fringe,
-    #             gt_depth.unsqueeze(0),
-    #             pred_depth[0],
-    #             sample_name,
-    #             save_path,
-    #             dataset_type=args.dataset_type,
-    #             depth_params_dir=args.depth_params_dir,
-    #             split=split
-    #         )
-
-    #         # Calculate metrics
-    #         gt_np = gt_depth.squeeze().cpu().numpy()
-    #         pred_np = pred_depth.squeeze().cpu().numpy()
-    #         pred_mm, gt_mm = denormalize_depth(
-    #             pred_np, gt_np, args.dataset_type, sample_name, args.depth_params_dir, split
-    #         )
-    #         error_mm = np.abs(pred_mm - gt_mm)
-
-    #         metrics = {
-    #             'sample_name': sample_name,
-    #             'mae': float(error_mm.mean()),
-    #             'rmse': float(np.sqrt(np.mean(error_mm ** 2)))
-    #         }
-    #         all_metrics.append(metrics)
-
-    #         if not args.process_all:
-    #             print(f"\n✓ Saved: {save_path}")
-    #             print(f"  MAE: {metrics['mae']:.2f} mm")
-    #             print(f"  RMSE: {metrics['rmse']:.2f} mm")
-
-     # Process images
     all_metrics = []
     
     with torch.no_grad():
@@ -746,28 +686,6 @@ def main():
         print(f"✓ Summary statistics saved to: {summary_path}")
     
     print(f"\n✓ All visualizations saved to: {save_dir}")
-    #     maes = [m['mae'] for m in all_metrics]
-    #     rmses = [m['rmse'] for m in all_metrics]
-
-    #     print("\n" + "=" * 70)
-    #     print("SUMMARY STATISTICS (in mm)")
-    #     print("=" * 70)
-    #     print(f"MAE:  avg={np.mean(maes):.2f}, std={np.std(maes):.2f}, median={np.median(maes):.2f}")
-    #     print(f"      min={np.min(maes):.2f}, max={np.max(maes):.2f}")
-    #     print()
-    #     print(f"RMSE: avg={np.mean(rmses):.2f}, std={np.std(rmses):.2f}, median={np.median(rmses):.2f}")
-    #     print("=" * 70)
-
-    #     # Save metrics to CSV
-    #     import csv
-    #     csv_path = save_dir / 'metrics.csv'
-    #     with open(csv_path, 'w', newline='') as f:
-    #         writer = csv.DictWriter(f, fieldnames=['sample_name', 'mae', 'rmse'])
-    #         writer.writeheader()
-    #         writer.writerows(all_metrics)
-    #     print(f"✓ Metrics saved to: {csv_path}")
-
-    # print(f"\n✓ All visualizations saved to: {save_dir}")
 
 
 if __name__ == '__main__':
