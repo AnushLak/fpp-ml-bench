@@ -160,6 +160,8 @@ python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0
 
 #### Training Arguments
 
+All models were trained with the recommended training arguments below.
+
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
 | `--dataset_type` | str | `_individual_normalized` | Dataset normalization: `_raw`, `_global_normalized`, `_individual_normalized` |
@@ -175,7 +177,7 @@ python train.py --dataset_type _individual_normalized --loss hybrid_l1 --alpha 0
 
 ## Results
 
-All models were trained with the recommended training arguments from above.
+Results from the test set for all four models trained with hybrid L1 loss (alpha = 0.7) on the individual normalized data are shown below.
 
 <table align="center">
   <tr>
