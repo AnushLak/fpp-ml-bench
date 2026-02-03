@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-100.0%25-blue)](https://github.com/AnushLak/FPP-ML-Benchmarking/tree/unetfixed)
 
 **Repository: fpp-ml-bench**
+**Dataset: Our dataset is publicly available on HuggingFace https://huggingface.co/datasets/aharoon/fpp-ml-bench.**
 
 _Accepted to SPIE Photonics West 2026 Conference on Photonic Instrumentation Engineering XIII_
 
