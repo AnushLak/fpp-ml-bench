@@ -21,11 +21,11 @@ from tqdm import tqdm
 
 import sys
 sys.path.append('UNet')
-sys.path.append('ResUNet')
-sys.path.append('Hformer')
+# sys.path.append('ResUNet')
+# sys.path.append('Hformer')
 from UNet.unet import UNetFPP
-from ResUNet.resunet import ResUNet
-from Hformer.hformer import Hformer
+# from ResUNet.resunet import ResUNet
+# from Hformer.hformer import Hformer
 
 
 # =============================================================================
