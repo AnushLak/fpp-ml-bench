@@ -32,6 +32,8 @@ The framework implements four state-of-the-art architectures with unified traini
  FPP-ML-Benchmarking/
   ├── dataset.py              # Common dataloader for all models
   ├── losses.py               # All 6 loss functions
+  ├── vis_pred.py             # trained model inference for UNet, ResUNet, and Hformer
+  ├── vis_pred_pix2pixHD.py   # trained model inference for pix2pixHD 
   ├── UNet/
   │   ├── unet.py            # Model architecture
   │   └── train.py           # Training script
