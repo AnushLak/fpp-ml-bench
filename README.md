@@ -182,21 +182,21 @@ Results from the test set for all four models trained with hybrid L1 loss (alpha
 <table align="center">
   <tr>
     <td align="center">
-      <img src="images/unet_predictions.gif" width="500"/><br/>
+      <img src="images/unet_predictions.gif" width="250"/><br/>
       <sub><b>UNet</b></sub>
     </td>
     <td align="center">
-      <img src="images/hformer_predictions.gif" width="500"/><br/>
+      <img src="images/hformer_predictions.gif" width="250"/><br/>
       <sub><b>Hformer</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="images/resunet_predictions.gif" width="500"/><br/>
+      <img src="images/resunet_predictions.gif" width="250"/><br/>
       <sub><b>ResUNet</b></sub>
     </td>
     <td align="center">
-      <img src="images/pix2pixhd_predictions.gif" width="500"/><br/>
+      <img src="images/pix2pixhd_predictions.gif" width="250"/><br/>
       <sub><b>pix2pixHD</b></sub>
     </td>
   </tr>
