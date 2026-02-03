@@ -177,10 +177,10 @@ All models were trained with the recommended training arguments from above.
 
 <table align="center">
   <tr>
-    <!-- <td align="center">
-      <img src="images/unet_predictions.gif" width="250"/><br/>
+    <td align="center">
+      <img src="images/unet_predictions.gif" width="500"/><br/>
       <sub><b>UNet</b></sub>
-    </td> -->
+    </td>
     <td align="center">
       <img src="images/hformer_predictions.gif" width="500"/><br/>
       <sub><b>Hformer</b></sub>
